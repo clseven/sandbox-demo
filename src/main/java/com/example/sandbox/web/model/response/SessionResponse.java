@@ -1,0 +1,59 @@
+package com.example.sandbox.web.model.response;
+
+import java.time.LocalDateTime;
+import java.util.Set;
+
+/**
+ * 会话响应
+ *
+ * @author example
+ * @date 2026/05/14
+ */
+public class SessionResponse {
+
+    private String sessionId;
+    private String sandboxId;
+    private Set<String> enabledSkillIds;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public String getSandboxId() {
+        return sandboxId;
+    }
+
+    public void setSandboxId(String sandboxId) {
+        this.sandboxId = sandboxId;
+    }
+
+    public Set<String> getEnabledSkillIds() {
+        return enabledSkillIds;
+    }
+
+    public void setEnabledSkillIds(Set<String> enabledSkillIds) {
+        this.enabledSkillIds = enabledSkillIds;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+}

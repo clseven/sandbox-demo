@@ -1,0 +1,38 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: sandbox-agent
+
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/sandbox_agent?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root@123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+agent:
+  sandbox:
+    domain: ${SANDBOX_DOMAIN:localhost:8080}
+    image: ${SANDBOX_IMAGE:sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2}
+    timeout: PT30M
+    ready-timeout: PT120S
+  skill:
+    directory: ${SKILL_DIR:.claude/skills}
+  llm:
+    api-url: ${LLM_API_URL:https://open.bigmodel.cn/api/paas/v4}
+    api-key: ${LLM_API_KEY:539a76171d804ce4932f61ba6936e669.orSKbLGa0KMCB2ox}
+    model: ${LLM_MODEL:glm-4.7}
+
+logging:
+  level:
+    com.example.sandbox: DEBUG

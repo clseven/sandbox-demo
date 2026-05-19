@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Superpowers 技能管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .main-layout {
+            display: flex;
+            gap: 20px;
+        }
+        .left-panel {
+            flex: 0 0 400px;
+        }
+        .right-panel {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 200px);
+            min-height: 500px;
+        }
+        .chat-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .chat-header h3 {
+            margin: 0;
+            color: #333;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .chat-message {
+            margin-bottom: 16px;
+        }
+        .chat-message.user {
+            text-align: right;
+        }
+        .chat-message .bubble {
+            display: inline-block;
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .chat-message.user .bubble {
+            background: #4CAF50;
+            color: white;
+            text-align: left;
+        }
+        .chat-message.assistant .bubble {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .chat-message .role-label {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 4px;
+        }
+        .chat-input-area {
+            padding: 16px 20px;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 12px;
+        }
+        .chat-input-area input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .chat-input-area button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .chat-input-area button:hover {
+            background: #45a049;
+        }
+        .chat-input-area button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 24px;
+        }
+        .session-selector {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .session-selector label {
+            font-weight: 500;
+            margin-right: 12px;
+        }
+        .skill-root-selector {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .skill-root-selector label {
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .skill-root-selector button {
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .skill-root-selector button:hover {
+            background: #45a049;
+        }
+        .skill-list {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .skill-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .skill-item:last-child {
+            border-bottom: none;
+        }
+        .skill-info {
+            flex: 1;
+        }
+        .skill-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+            font-size: 15px;
+        }
+        .skill-id {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 6px;
+            font-family: monospace;
+        }
+        .skill-desc {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .skill-switch {
+            margin-left: 20px;
+            padding-top: 4px;
+        }
+        /* Switch 样式 */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 26px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .3s;
+            border-radius: 26px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .error {
+            color: #f44336;
+            padding: 20px;
+            text-align: center;
+        }
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            flex: 1;
+        }
+        .stat-number {
+            font-size: 28px;
+            font-weight: 600;
+            color: #333;
+        }
+        .stat-label {
+            font-size: 13px;
+            color: #666;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Superpowers 技能管理</h1>
+        <p class="subtitle">为 Agent 会话配置可用的技能</p>
+
+        <div class="main-layout">
+            <!-- 左侧：技能管理 -->
+            <div class="left-panel">
+                <div class="skill-root-selector">
+                    <label>技能根目录：</label>
+                    <input type="text" id="skill-root-input" placeholder="例如: skills/ 或 D:/my-skills/" style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                    <button onclick="loadSkillsFromRoot()">加载</button>
+                </div>
+
+                <div class="stats" id="stats-section" style="display: none;">
+                    <div class="stat-card">
+                        <div class="stat-number" id="total-skills">-</div>
+                        <div class="stat-label">技能总数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="enabled-skills">-</div>
+                        <div class="stat-label">已启用</div>
+                    </div>
+                </div>
+
+                <div class="session-selector" id="session-section" style="display: none;">
+                    <label>当前会话：</label>
+                    <span id="current-session" style="color: #666;">未创建</span>
+                    <button onclick="createSession()" style="margin-left: 12px;">创建新会话</button>
+                    <button onclick="copySessionId()" id="copy-btn" style="margin-left: 8px; background: #2196F3; display: none;">复制 ID</button>
+                </div>
+
+                <div class="skill-list" id="skill-list">
+                    <div class="empty">请先设置技能根目录并点击加载</div>
+                </div>
+            </div>
+
+            <!-- 右侧：对话窗口 -->
+            <div class="right-panel" id="chat-panel" style="display: none;">
+                <div class="chat-header">
+                    <h3>💬 对话</h3>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="empty">创建会话后可开始对话</div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="输入消息..." onkeypress="if(event.key==='Enter')sendMessage()">
+                    <button onclick="sendMessage()">发送</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+        let currentSessionId = null;
+        let allSkills = [];
+        let enabledSkillIds = new Set();
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 不自动加载技能，等用户设置根目录
+        });
+
+        // 从用户指定的根目录加载技能
+        async function loadSkillsFromRoot() {
+            const rootPath = document.getElementById('skill-root-input').value.trim();
+            if (!rootPath) {
+                alert('请输入技能根目录');
+                return;
+            }
+
+            document.getElementById('skill-list').innerHTML = '<div class="loading">加载中...</div>';
+
+            try {
+                // 设置技能根目录
+                const res = await fetch(`${API_BASE}/api/skills/set-root`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ directory: rootPath })
+                });
+                const data = await res.json();
+                if (data.code !== 200) {
+                    showError('设置技能目录失败: ' + data.message);
+                    return;
+                }
+
+                // 获取技能列表
+                const listRes = await fetch(`${API_BASE}/api/skills`);
+                const listData = await listRes.json();
+                if (listData.code === 200) {
+                    allSkills = listData.data || [];
+                    document.getElementById('total-skills').textContent = allSkills.length;
+                    document.getElementById('stats-section').style.display = 'flex';
+                    document.getElementById('session-section').style.display = 'block';
+                    renderSkillList();
+                } else {
+                    showError('加载技能列表失败: ' + listData.message);
+                }
+            } catch (e) {
+                showError('加载失败: ' + e.message);
+            }
+        }
+
+        // 创建新会话
+        async function createSession() {
+            try {
+                const res = await fetch(`${API_BASE}/api/sessions`, { method: 'POST' });
+                const data = await res.json();
+                if (data.code === 200) {
+                    const sessionId = data.data.sessionId;
+                    currentSessionId = sessionId;
+
+                    // 显示当前会话 ID
+                    document.getElementById('current-session').innerHTML =
+                        `<code style="background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${sessionId}</code>`;
+                    document.getElementById('copy-btn').style.display = 'inline-block';
+
+                    await loadEnabledSkills();
+                    showChatPanel();
+                } else {
+                    alert('创建会话失败: ' + data.message);
+                }
+            } catch (e) {
+                alert('创建会话失败: ' + e.message);
+            }
+        }
+
+        // 复制会话 ID
+        function copySessionId() {
+            if (currentSessionId) {
+                navigator.clipboard.writeText(currentSessionId).then(() => {
+                    const btn = document.getElementById('copy-btn');
+                    btn.textContent = '已复制!';
+                    setTimeout(() => btn.textContent = '复制 ID', 1500);
+                });
+            }
+        }
+
+        // 输入框回车触发加载
+        document.getElementById('skill-root-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loadSkillsFromRoot();
+            }
+        });
+
+        // 创建会话后显示聊天窗口
+        function showChatPanel() {
+            document.getElementById('chat-panel').style.display = 'flex';
+            document.getElementById('chat-messages').innerHTML = '<div class="empty">创建会话后可开始对话</div>';
+        }
+
+        // 发送消息
+        async function sendMessage() {
+            if (!currentSessionId) {
+                alert('请先创建会话');
+                return;
+            }
+
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            // 清空输入框
+            input.value = '';
+
+            // 显示用户消息
+            appendMessage('user', message);
+
+            // 禁用发送按钮
+            const sendBtn = document.querySelector('#chat-input + button');
+            sendBtn.disabled = true;
+            sendBtn.textContent = '处理中...';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/sessions/${currentSessionId}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+                const data = await res.json();
+                if (data.code === 200 && data.data) {
+                    appendMessage('assistant', data.data.content || '（无响应）');
+                } else {
+                    appendMessage('assistant', '错误: ' + (data.message || '未知错误'));
+                }
+            } catch (e) {
+                appendMessage('assistant', '错误: ' + e.message);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = '发送';
+            }
+        }
+
+        // 添加消息到聊天窗口
+        function appendMessage(role, content) {
+            const container = document.getElementById('chat-messages');
+
+            // 移除空提示
+            if (container.querySelector('.empty')) {
+                container.innerHTML = '';
+            }
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-message ' + role;
+            msgDiv.innerHTML = `
+                <div class="role-label">${role === 'user' ? '你' : '助手'}</div>
+                <div class="bubble">${escapeHtml(content)}</div>
+            `;
+            container.appendChild(msgDiv);
+
+            // 滚动到底部
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // 加载已启用的技能
+        async function loadEnabledSkills() {
+            if (!currentSessionId) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/sessions/${currentSessionId}/skills`);
+                const data = await res.json();
+                if (data.code === 200) {
+                    enabledSkillIds = new Set(data.data || []);
+                    document.getElementById('enabled-skills').textContent = enabledSkillIds.size;
+                    renderSkillList();
+                }
+            } catch (e) {
+                console.error('加载已启用技能失败:', e);
+            }
+        }
+
+        // 渲染技能列表
+        function renderSkillList() {
+            const container = document.getElementById('skill-list');
+
+            if (allSkills.length === 0) {
+                container.innerHTML = '<div class="empty">暂无技能</div>';
+                return;
+            }
+
+            container.innerHTML = allSkills.map(skill => `
+                <div class="skill-item">
+                    <div class="skill-info">
+                        <div class="skill-name">${escapeHtml(skill.name || skill.id)}</div>
+                        <div class="skill-id">${escapeHtml(skill.id)}</div>
+                        <div class="skill-desc">${escapeHtml(skill.description || '暂无描述')}</div>
+                    </div>
+                    <div class="skill-switch">
+                        <label class="switch">
+                            <input type="checkbox"
+                                   ${enabledSkillIds.has(skill.id) ? 'checked' : ''}
+                                   ${!currentSessionId ? 'disabled' : ''}
+                                   onchange="toggleSkill('${skill.id}', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 切换技能启用状态
+        async function toggleSkill(skillId, enabled) {
+            if (!currentSessionId) {
+                alert('请先选择或创建会话');
+                return;
+            }
+
+            try {
+                const action = enabled ? 'enable' : 'disable';
+                const res = await fetch(`${API_BASE}/api/sessions/${currentSessionId}/skills/${skillId}/${action}`, {
+                    method: 'POST'
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    if (enabled) {
+                        enabledSkillIds.add(skillId);
+                    } else {
+                        enabledSkillIds.delete(skillId);
+                    }
+                    document.getElementById('enabled-skills').textContent = enabledSkillIds.size;
+                } else {
+                    alert('操作失败: ' + data.message);
+                    renderSkillList(); // 回滚 UI
+                }
+            } catch (e) {
+                alert('操作失败: ' + e.message);
+                renderSkillList(); // 回滚 UI
+            }
+        }
+
+        function showError(msg) {
+            document.getElementById('skill-list').innerHTML = `<div class="error">${escapeHtml(msg)}</div>`;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
