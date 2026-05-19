@@ -29,9 +29,9 @@ agent:
   skill:
     directory: ${SKILL_DIR:.claude/skills}
   llm:
-    api-url: ${LLM_API_URL:https://open.bigmodel.cn/api/paas/v4}
-    api-key: ${LLM_API_KEY:539a76171d804ce4932f61ba6936e669.orSKbLGa0KMCB2ox}
-    model: ${LLM_MODEL:glm-4.7}
+    api-url: ${LLM_API_URL:}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:}
 
 logging:
   level:
