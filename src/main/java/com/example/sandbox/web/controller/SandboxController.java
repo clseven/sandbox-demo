@@ -1,10 +1,15 @@
 package com.example.sandbox.web.controller;
 
+import com.example.sandbox.aio.AioSandboxClient;
 import com.example.sandbox.web.model.entity.ExecutionResult;
 import com.example.sandbox.web.model.request.ExecuteRequest;
 import com.example.sandbox.web.model.request.FileWriteRequest;
 import com.example.sandbox.web.model.response.ApiResponse;
 import com.example.sandbox.web.service.SandboxService;
+import com.example.sandbox.web.service.impl.SandboxServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -17,11 +22,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/sessions")
 public class SandboxController {
 
-    private final SandboxService sandboxService;
+    @Autowired
+    private SandboxService sandboxService;
 
-    public SandboxController(SandboxService sandboxService) {
-        this.sandboxService = sandboxService;
-    }
+    @Autowired
+    private SandboxServiceImpl sandboxServiceImpl;
 
     /**
      * 执行命令
@@ -54,5 +59,23 @@ public class SandboxController {
             @RequestBody FileWriteRequest request) {
         ExecutionResult result = sandboxService.writeFile(id, request.getPath(), request.getContent());
         return ApiResponse.success(result);
+    }
+
+    /**
+     * 下载 AIO 沙箱中的文件
+     */
+    @GetMapping("/{id}/aio/download")
+    public void downloadAioFile(@PathVariable String id, @RequestParam String path, HttpServletResponse response) {
+        try {
+            AioSandboxClient client = sandboxServiceImpl.getAioClient(id);
+            byte[] fileContent = client.downloadFile(path);
+
+            String filename = path.substring(path.lastIndexOf('/') + 1);
+            response.setContentType(MediaType.IMAGE_PNG_VALUE);
+            response.setHeader("Content-Disposition", "inline; filename=\"" + filename + "\"");
+            response.getOutputStream().write(fileContent);
+        } catch (Exception e) {
+            response.setStatus(500);
+        }
     }
 }

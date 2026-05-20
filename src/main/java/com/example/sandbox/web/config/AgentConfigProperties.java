@@ -16,6 +16,7 @@ public class AgentConfigProperties {
     private Sandbox sandbox = new Sandbox();
     private Skill skill = new Skill();
     private Llm llm = new Llm();
+    private Storage storage = new Storage();
 
     public Sandbox getSandbox() {
         return sandbox;
@@ -39,6 +40,14 @@ public class AgentConfigProperties {
 
     public void setLlm(Llm llm) {
         this.llm = llm;
+    }
+
+    public Storage getStorage() {
+        return storage;
+    }
+
+    public void setStorage(Storage storage) {
+        this.storage = storage;
     }
 
     public static class Sandbox {
@@ -67,7 +76,7 @@ public class AgentConfigProperties {
     public static class Llm {
         private String apiUrl = "";
         private String apiKey = "";
-        private String model = "glm-4";
+        private String model = "glm-4.7";
 
         public String getApiUrl() { return apiUrl; }
         public void setApiUrl(String apiUrl) { this.apiUrl = apiUrl; }
@@ -75,5 +84,41 @@ public class AgentConfigProperties {
         public void setApiKey(String apiKey) { this.apiKey = apiKey; }
         public String getModel() { return model; }
         public void setModel(String model) { this.model = model; }
+    }
+
+    public static class Storage {
+        private String type = "local";
+        private Local local = new Local();
+        private Oss oss = new Oss();
+
+        public String getType() { return type; }
+        public void setType(String type) { this.type = type; }
+        public Local getLocal() { return local; }
+        public void setLocal(Local local) { this.local = local; }
+        public Oss getOss() { return oss; }
+        public void setOss(Oss oss) { this.oss = oss; }
+
+        public static class Local {
+            private String basePath = "./uploads";
+
+            public String getBasePath() { return basePath; }
+            public void setBasePath(String basePath) { this.basePath = basePath; }
+        }
+
+        public static class Oss {
+            private String endpoint = "";
+            private String bucket = "";
+            private String accessKey = "";
+            private String secretKey = "";
+
+            public String getEndpoint() { return endpoint; }
+            public void setEndpoint(String endpoint) { this.endpoint = endpoint; }
+            public String getBucket() { return bucket; }
+            public void setBucket(String bucket) { this.bucket = bucket; }
+            public String getAccessKey() { return accessKey; }
+            public void setAccessKey(String accessKey) { this.accessKey = accessKey; }
+            public String getSecretKey() { return secretKey; }
+            public void setSecretKey(String secretKey) { this.secretKey = secretKey; }
+        }
     }
 }

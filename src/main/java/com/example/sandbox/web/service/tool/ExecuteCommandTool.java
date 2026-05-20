@@ -1,8 +1,10 @@
 package com.example.sandbox.web.service.tool;
 
 import com.example.sandbox.web.model.entity.ToolDefinition;
-import com.example.sandbox.web.service.SandboxService;
+import com.example.sandbox.web.service.SandboxClient;
 import com.example.sandbox.web.service.Tool;
+import com.example.sandbox.web.service.impl.SandboxClientFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -10,20 +12,14 @@ import java.util.Map;
 
 /**
  * 执行命令工具
- *
- * @author example
- * @date 2026/05/15
  */
 @Component
 public class ExecuteCommandTool implements Tool {
 
     private static final String NAME = "execute_command";
 
-    private final SandboxService sandboxService;
-
-    public ExecuteCommandTool(SandboxService sandboxService) {
-        this.sandboxService = sandboxService;
-    }
+    @Autowired
+    private SandboxClientFactory factory;
 
     @Override
     public ToolDefinition getDefinition() {
@@ -42,7 +38,8 @@ public class ExecuteCommandTool implements Tool {
         return new ToolDefinition(
                 NAME,
                 "在沙箱环境中执行 shell 命令。可用于运行脚本、查看文件、安装依赖等。",
-                parameters
+                parameters,
+                "ALL"
         );
     }
 
@@ -54,12 +51,8 @@ public class ExecuteCommandTool implements Tool {
         }
 
         try {
-            var result = sandboxService.executeCommand(sessionId, command);
-            if (result.isSuccess()) {
-                return "执行成功：\n" + result.getBody();
-            } else {
-                return "执行失败：" + result.getBody();
-            }
+            SandboxClient client = factory.getClient(sessionId);
+            return client.execCommand(command);
         } catch (Exception e) {
             return "执行出错：" + e.getMessage();
         }

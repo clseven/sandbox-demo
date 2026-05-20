@@ -57,6 +57,13 @@ public class ReactAgent {
 
             **重要**：只有在判断某技能相关时才激活它，不相关的技能不要加载，以节省 token。
 
+            ## 文件处理
+
+            - 用户上传的文件在沙盒 `/workspace/uploads/` 目录
+            - Skill 文件在 `/mounted-skills/{skillId}/` 目录
+            - 用 `list_files` 查看沙盒里有哪些文件
+            - 用 `read_file` 读取文件内容，用 `write_file` 保存处理结果
+
             ## 重要规则
 
             1. **必须调用工具** — 当需要执行命令、读写文件、激活技能时，必须调用对应工具

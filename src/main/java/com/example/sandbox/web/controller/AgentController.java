@@ -7,6 +7,7 @@ import com.example.sandbox.web.model.response.ApiResponse;
 import com.example.sandbox.web.model.response.SessionResponse;
 import com.example.sandbox.web.service.AgentService;
 import com.example.sandbox.web.service.ConversationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,13 +23,11 @@ import java.util.Set;
 @RequestMapping("/api/sessions")
 public class AgentController {
 
-    private final AgentService agentService;
-    private final ConversationService conversationService;
+    @Autowired
+    private AgentService agentService;
 
-    public AgentController(AgentService agentService, ConversationService conversationService) {
-        this.agentService = agentService;
-        this.conversationService = conversationService;
-    }
+    @Autowired
+    private ConversationService conversationService;
 
     /**
      * 创建会话

@@ -1,6 +1,7 @@
 package com.example.sandbox.web.service;
 
 import com.example.sandbox.web.model.entity.ChatMessage;
+import com.example.sandbox.web.model.entity.Skill;
 
 import java.util.List;
 import java.util.Set;
@@ -75,4 +76,31 @@ public interface ConversationService {
      * @return 技能 ID 集合
      */
     Set<String> getEnabledSkillIds(String sessionId);
+
+    /**
+     * 获取启用的技能列表
+     *
+     * @param sessionId 会话 ID
+     * @return 技能列表
+     */
+    List<Skill> getEnabledSkills(String sessionId);
+
+    /**
+     * 获取技能内容
+     *
+     * @param sessionId 会话 ID
+     * @param skillId   技能 ID
+     * @return 技能内容
+     */
+    String getSkillContent(String sessionId, String skillId);
+
+    /**
+     * 获取技能引用文件内容
+     *
+     * @param sessionId 会话 ID
+     * @param skillId   技能 ID
+     * @param path      引用文件路径
+     * @return 文件内容
+     */
+    String getSkillReference(String sessionId, String skillId, String path);
 }

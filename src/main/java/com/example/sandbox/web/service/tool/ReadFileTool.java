@@ -1,8 +1,10 @@
 package com.example.sandbox.web.service.tool;
 
 import com.example.sandbox.web.model.entity.ToolDefinition;
-import com.example.sandbox.web.service.SandboxService;
+import com.example.sandbox.web.service.SandboxClient;
 import com.example.sandbox.web.service.Tool;
+import com.example.sandbox.web.service.impl.SandboxClientFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -10,27 +12,21 @@ import java.util.Map;
 
 /**
  * 读取文件工具
- *
- * @author example
- * @date 2026/05/15
  */
 @Component
 public class ReadFileTool implements Tool {
 
     private static final String NAME = "read_file";
 
-    private final SandboxService sandboxService;
-
-    public ReadFileTool(SandboxService sandboxService) {
-        this.sandboxService = sandboxService;
-    }
+    @Autowired
+    private SandboxClientFactory factory;
 
     @Override
     public ToolDefinition getDefinition() {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("path", Map.of(
                 "type", "string",
-                "description", "沙箱中的文件路径"
+                "description", "要读取的文件路径"
         ));
 
         Map<String, Object> parameters = Map.of(
@@ -42,7 +38,8 @@ public class ReadFileTool implements Tool {
         return new ToolDefinition(
                 NAME,
                 "读取沙箱环境中的文件内容",
-                parameters
+                parameters,
+                "ALL"
         );
     }
 
@@ -54,14 +51,10 @@ public class ReadFileTool implements Tool {
         }
 
         try {
-            var result = sandboxService.readFile(sessionId, path);
-            if (result.isSuccess()) {
-                return result.getBody();
-            } else {
-                return "读取失败：" + result.getBody();
-            }
+            SandboxClient client = factory.getClient(sessionId);
+            return client.readFile(path);
         } catch (Exception e) {
-            return "读取出错：" + e.getMessage();
+            return "读取失败：" + e.getMessage();
         }
     }
 }

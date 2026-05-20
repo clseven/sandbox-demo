@@ -23,15 +23,24 @@ spring:
 agent:
   sandbox:
     domain: ${SANDBOX_DOMAIN:localhost:8080}
-    image: ${SANDBOX_IMAGE:sandbox-registry.cn-zhangjiakou.cr.aliyuncs.com/opensandbox/code-interpreter:v1.0.2}
+    image: ${SANDBOX_IMAGE:ghcr.io/agent-infra/sandbox:latest}
     timeout: PT30M
     ready-timeout: PT120S
+  storage:
+    type: ${STORAGE_TYPE:local}
+    local:
+      base-path: ${STORAGE_LOCAL_PATH:./uploads}
+    oss:
+      endpoint: ${OSS_ENDPOINT:}
+      bucket: ${OSS_BUCKET:}
+      access-key: ${OSS_ACCESS_KEY:}
+      secret-key: ${OSS_SECRET_KEY:}
   skill:
     directory: ${SKILL_DIR:.claude/skills}
   llm:
-    api-url: ${LLM_API_URL:}
-    api-key: ${LLM_API_KEY:}
-    model: ${LLM_MODEL:}
+    api-url: ${LLM_API_URL:https://open.bigmodel.cn/api/paas/v4}
+    api-key: ${LLM_API_KEY:539a76171d804ce4932f61ba6936e669.orSKbLGa0KMCB2ox}
+    model: ${LLM_MODEL:glm-4.7}
 
 logging:
   level:

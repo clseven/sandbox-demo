@@ -11,12 +11,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 写入文件工具
+ * 列出文件工具
  */
 @Component
-public class WriteFileTool implements Tool {
+public class ListFilesTool implements Tool {
 
-    private static final String NAME = "write_file";
+    private static final String NAME = "list_files";
 
     @Autowired
     private SandboxClientFactory factory;
@@ -26,22 +26,18 @@ public class WriteFileTool implements Tool {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("path", Map.of(
                 "type", "string",
-                "description", "要写入的文件路径"
-        ));
-        properties.put("content", Map.of(
-                "type", "string",
-                "description", "要写入的文件内容"
+                "description", "要查看的目录路径，如 /workspace 或 /tmp"
         ));
 
         Map<String, Object> parameters = Map.of(
                 "type", "object",
                 "properties", properties,
-                "required", java.util.List.of("path", "content")
+                "required", java.util.List.of()
         );
 
         return new ToolDefinition(
                 NAME,
-                "在沙箱环境中写入或创建文件",
+                "列出沙盒中指定目录下的所有文件和子目录，帮助你了解沙盒里有哪些文件可用。",
                 parameters,
                 "ALL"
         );
@@ -50,21 +46,15 @@ public class WriteFileTool implements Tool {
     @Override
     public String execute(String sessionId, Map<String, Object> arguments) {
         String path = (String) arguments.get("path");
-        String content = (String) arguments.get("content");
-
         if (path == null || path.isBlank()) {
-            return "错误：文件路径不能为空";
-        }
-        if (content == null) {
-            return "错误：文件内容不能为空";
+            path = ".";
         }
 
         try {
             SandboxClient client = factory.getClient(sessionId);
-            client.writeFile(path, content);
-            return "文件写入成功：" + path;
+            return client.execCommand("ls -la " + path);
         } catch (Exception e) {
-            return "写入失败：" + e.getMessage();
+            return "列出失败：" + e.getMessage();
         }
     }
 }

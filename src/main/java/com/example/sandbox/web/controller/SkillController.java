@@ -3,6 +3,7 @@ package com.example.sandbox.web.controller;
 import com.example.sandbox.web.model.entity.Skill;
 import com.example.sandbox.web.model.response.ApiResponse;
 import com.example.sandbox.web.service.SkillService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -18,11 +19,8 @@ import java.util.List;
 @RequestMapping("/api/skills")
 public class SkillController {
 
-    private final SkillService skillService;
-
-    public SkillController(SkillService skillService) {
-        this.skillService = skillService;
-    }
+    @Autowired
+    private SkillService skillService;
 
     /**
      * 列出所有技能

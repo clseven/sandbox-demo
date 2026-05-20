@@ -13,18 +13,17 @@ import com.example.sandbox.web.repository.ConversationSessionRepository;
 import com.example.sandbox.web.service.ConversationService;
 import com.example.sandbox.web.service.SandboxService;
 import com.example.sandbox.web.service.SkillService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 /**
  * 对话记忆服务实现
@@ -41,6 +40,10 @@ public class ConversationServiceImpl implements ConversationService {
     private final ChatMessageRepository messageRepository;
     private final SkillService skillService;
     private final SandboxService sandboxService;
+
+    @Autowired
+    @org.springframework.context.annotation.Lazy
+    private FileSyncService fileSyncService;
 
     public ConversationServiceImpl(ConversationSessionRepository sessionRepository,
                                   ChatMessageRepository messageRepository,
@@ -91,6 +94,7 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public String buildPrompt(String sessionId) {
         if (!sessionRepository.existsById(sessionId)) {
             throw new SessionNotFoundException(sessionId);
@@ -156,33 +160,7 @@ public class ConversationServiceImpl implements ConversationService {
         // 如果沙箱已存在，同步技能文件到沙箱
         if (sandboxService != null && sandboxService.hasSandbox(sessionId)) {
             log.info("同步技能文件到沙箱: {}", skillId);
-            syncSkillToSandbox(sessionId, skill);
-        }
-    }
-
-    /**
-     * 同步技能目录到沙箱
-     */
-    private void syncSkillToSandbox(String sessionId, Skill skill) {
-        Path skillPath = skill.getLocalPath();
-        String containerBase = "/mounted-skills/" + skill.getId();
-
-        try (Stream<Path> paths = Files.walk(skillPath)) {
-            paths.filter(Files::isRegularFile).forEach(file -> {
-                try {
-                    String relativePath = skillPath.relativize(file).toString().replace("\\", "/");
-                    String containerPath = containerBase + "/" + relativePath;
-                    String content = Files.readString(file);
-
-                    sandboxService.writeFile(sessionId, containerPath, content);
-                    log.debug("已同步: {} -> {}", file, containerPath);
-                } catch (Exception e) {
-                    log.warn("同步文件失败: {} - {}", file, e.getMessage());
-                }
-            });
-            log.info("技能 {} 同步完成，共 {} 个文件", skill.getId(), paths.count());
-        } catch (IOException e) {
-            log.error("遍历技能目录失败: {}", skillPath, e);
+            fileSyncService.syncSkill(sessionId, skill.getLocalPath(), skill.getId());
         }
     }
 
@@ -235,6 +213,63 @@ public class ConversationServiceImpl implements ConversationService {
     public void deleteSession(String sessionId) {
         if (sessionRepository.existsById(sessionId)) {
             sessionRepository.deleteById(sessionId);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Skill> getEnabledSkills(String sessionId) {
+        ConversationSessionEntity session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new SessionNotFoundException(sessionId));
+
+        Set<String> skillIds = session.getEnabledSkillIds();
+        return skillIds.stream()
+                .map(sid -> {
+                    try {
+                        return skillService.getSkill(sid);
+                    } catch (SkillNotFoundException e) {
+                        log.warn("技能 {} 不存在，跳过", sid);
+                        return null;
+                    } catch (IOException e) {
+                        log.error("读取技能 {} 失败: {}", sid, e.getMessage());
+                        return null;
+                    }
+                })
+                .filter(s -> s != null)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getSkillContent(String sessionId, String skillId) {
+        if (!sessionRepository.existsById(sessionId)) {
+            throw new SessionNotFoundException(sessionId);
+        }
+
+        try {
+            Skill skill = skillService.getSkill(skillId);
+            return skill.getContent();
+        } catch (SkillNotFoundException e) {
+            throw new RuntimeException("Skill not found: " + skillId);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read skill content: " + skillId, e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getSkillReference(String sessionId, String skillId, String path) {
+        if (!sessionRepository.existsById(sessionId)) {
+            throw new SessionNotFoundException(sessionId);
+        }
+
+        try {
+            Skill skill = skillService.getSkill(skillId);
+            return skill.getReferenceFile(path);
+        } catch (SkillNotFoundException e) {
+            throw new RuntimeException("Skill not found: " + skillId);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read skill reference: " + skillId + "/" + path, e);
         }
     }
 

@@ -74,6 +74,19 @@ public class SandboxAgent implements AutoCloseable {
         return sandbox.getInfo();
     }
 
+    /**
+     * 获取 AIO 服务的外部访问地址
+     *
+     * <p>AIO 容器内部监听 8080 端口，通过此方法获取映射到宿主机的地址，
+     * 用于连接 AIO 的 REST API（截图、环境信息等）。</p>
+     *
+     * @return 外部访问地址，如 "localhost:34567"
+     */
+    public String getAioEndpoint() {
+        var endpoint = sandbox.getEndpoint(8080);
+        return endpoint.getEndpoint();
+    }
+
     // ==================== 命令执行 ====================
 
     /**
@@ -229,8 +242,8 @@ public class SandboxAgent implements AutoCloseable {
             // 终止失败时静默处理
         }
         sandbox.close();
-    }
 
+    }
     // ==================== 工具方法 ====================
 
     /**
@@ -267,7 +280,7 @@ public class SandboxAgent implements AutoCloseable {
         private String domain = "localhost:8080";
         private String apiKey;
         private String image = DEFAULT_IMAGE;
-        private List<String> entrypoint = List.of("/bin/sh", "-c", "sleep infinity");
+        private List<String> entrance;
         private Duration timeout = DEFAULT_TIMEOUT;
         private Duration readyTimeout = DEFAULT_READY_TIMEOUT;
         private boolean debug = false;
@@ -288,8 +301,8 @@ public class SandboxAgent implements AutoCloseable {
             return this;
         }
 
-        public Builder entrypoint(List<String> entrypoint) {
-            this.entrypoint = entrypoint;
+        public Builder entrypoint(String... commands) {
+            this.entrance = List.of(commands);
             return this;
         }
 
@@ -342,7 +355,6 @@ public class SandboxAgent implements AutoCloseable {
          * @return SandboxAgent 实例
          */
         public SandboxAgent build() {
-            // 直接使用 builder，不设置 apiKey（让它从环境变量读取或为空）
             ConnectionConfig config = ConnectionConfig.builder()
                     .domain(domain)
                     .debug(debug)
@@ -351,9 +363,13 @@ public class SandboxAgent implements AutoCloseable {
             Sandbox.Builder sandboxBuilder = Sandbox.builder()
                     .connectionConfig(config)
                     .image(image)
-                    .entrypoint(entrypoint)
                     .timeout(timeout)
                     .readyTimeout(readyTimeout);
+
+            // 如果设置了 entrance，使用自定义启动命令
+            if (entrance != null) {
+                sandboxBuilder.entrypoint(entrance);
+            }
 
             // 如果有 Volume 配置，添加到沙箱
             if (!volumes.isEmpty()) {

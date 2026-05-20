@@ -1,10 +1,11 @@
 package com.example.sandbox.web.service.tool;
 
 import com.example.sandbox.web.model.entity.ToolDefinition;
-import com.example.sandbox.web.service.SandboxService;
 import com.example.sandbox.web.service.Tool;
+import com.example.sandbox.web.service.SandboxService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -12,24 +13,15 @@ import java.util.Map;
 
 /**
  * 请求沙箱工具
- *
- * <p>当 Agent 需要执行命令、读写文件时，调用此工具请求沙箱。</p>
- *
- * @author example
- * @date 2026/05/15
  */
 @Component
 public class RequestSandboxTool implements Tool {
 
     private static final Logger log = LoggerFactory.getLogger(RequestSandboxTool.class);
-
     private static final String NAME = "request_sandbox";
 
-    private final SandboxService sandboxService;
-
-    public RequestSandboxTool(SandboxService sandboxService) {
-        this.sandboxService = sandboxService;
-    }
+    @Autowired
+    private SandboxService sandboxService;
 
     @Override
     public ToolDefinition getDefinition() {
@@ -48,7 +40,8 @@ public class RequestSandboxTool implements Tool {
         return new ToolDefinition(
                 NAME,
                 "请求创建沙箱环境。当需要执行命令、运行代码、读写文件时必须先调用此工具申请沙箱。",
-                parameters
+                parameters,
+                "COMMON"
         );
     }
 

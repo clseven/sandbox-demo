@@ -79,6 +79,97 @@
             color: #999;
             margin-bottom: 4px;
         }
+        /* 文件附件 */
+        .file-attachments {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .file-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .file-item:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .file-item .file-icon {
+            font-size: 16px;
+        }
+        .file-item .file-name {
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .file-item .file-size {
+            color: rgba(255,255,255,0.7);
+            font-size: 11px;
+        }
+        /* 上传区 */
+        .upload-area {
+            padding: 8px 20px;
+            border-top: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #fafafa;
+        }
+        .upload-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 12px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .upload-btn:hover {
+            background: #f5f5f5;
+            border-color: #ccc;
+        }
+        .upload-btn input {
+            display: none;
+        }
+        .upload-file-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .upload-file-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: #e8f5e9;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #2e7d32;
+        }
+        .upload-file-tag .remove-btn {
+            cursor: pointer;
+            color: #999;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .upload-file-tag .remove-btn:hover {
+            color: #f44336;
+        }
+        .upload-progress {
+            font-size: 12px;
+            color: #999;
+        }
         .chat-input-area {
             padding: 16px 20px;
             border-top: 1px solid #eee;
@@ -300,6 +391,7 @@
                     <span id="current-session" style="color: #666;">未创建</span>
                     <button onclick="createSession()" style="margin-left: 12px;">创建新会话</button>
                     <button onclick="copySessionId()" id="copy-btn" style="margin-left: 8px; background: #2196F3; display: none;">复制 ID</button>
+                    <button onclick="clearSession()" id="clear-btn" style="margin-left: 8px; background: #f44336; display: none;">退出</button>
                 </div>
 
                 <div class="skill-list" id="skill-list">
@@ -315,6 +407,16 @@
                 <div class="chat-messages" id="chat-messages">
                     <div class="empty">创建会话后可开始对话</div>
                 </div>
+                <!-- 上传区域 -->
+                <div class="upload-area">
+                    <label class="upload-btn" id="upload-btn">
+                        <span>📎</span>
+                        <span>添加文件</span>
+                        <input type="file" id="file-input" multiple onchange="handleFileSelect(event)">
+                    </label>
+                    <div class="upload-file-list" id="upload-file-list"></div>
+                    <div class="upload-progress" id="upload-progress"></div>
+                </div>
                 <div class="chat-input-area">
                     <input type="text" id="chat-input" placeholder="输入消息..." onkeypress="if(event.key==='Enter')sendMessage()">
                     <button onclick="sendMessage()">发送</button>
@@ -328,11 +430,86 @@
         let currentSessionId = null;
         let allSkills = [];
         let enabledSkillIds = new Set();
+        const SESSION_KEY = 'agent_session_id';
+        let pendingFiles = []; // 待上传文件
 
         // 页面加载时初始化
         document.addEventListener('DOMContentLoaded', async () => {
-            // 不自动加载技能，等用户设置根目录
+            // 尝试恢复上次会话
+            const savedSessionId = localStorage.getItem(SESSION_KEY);
+            if (savedSessionId) {
+                await restoreSession(savedSessionId);
+            }
         });
+
+        // 恢复保存的会话
+        async function restoreSession(sessionId) {
+            try {
+                // 先加载技能列表
+                const listRes = await fetch(`${API_BASE}/api/skills`);
+                const listData = await listRes.json();
+                if (listData.code === 200) {
+                    allSkills = listData.data || [];
+                    document.getElementById('total-skills').textContent = allSkills.length;
+                    document.getElementById('stats-section').style.display = 'flex';
+                    document.getElementById('session-section').style.display = 'block';
+                }
+
+                // 尝试获取会话信息，验证会话是否有效
+                const res = await fetch(`${API_BASE}/api/sessions/${sessionId}`);
+                const data = await res.json();
+
+                if (data.code === 200) {
+                    // 会话有效，恢复它
+                    currentSessionId = sessionId;
+
+                    document.getElementById('current-session').innerHTML =
+                        `<code style="background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${sessionId}</code>
+                         <span style="color: #4CAF50; margin-left: 8px;">✓ 已恢复</span>`;
+                    document.getElementById('copy-btn').style.display = 'inline-block';
+                    document.getElementById('clear-btn').style.display = 'inline-block';
+
+                    // 加载已启用的技能
+                    await loadEnabledSkills();
+
+                    // 显示聊天窗口
+                    showChatPanel();
+
+                    // 加载历史消息
+                    await loadHistory();
+                } else {
+                    // 会话无效，清除保存的ID
+                    localStorage.removeItem(SESSION_KEY);
+                    console.log('会话已过期，已清除');
+                }
+            } catch (e) {
+                console.error('恢复会话失败:', e);
+                localStorage.removeItem(SESSION_KEY);
+            }
+        }
+
+        // 加载历史消息
+        async function loadHistory() {
+            if (!currentSessionId) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/sessions/${currentSessionId}/history`);
+                const data = await res.json();
+                if (data.code === 200 && data.data) {
+                    const container = document.getElementById('chat-messages');
+                    container.innerHTML = '';
+
+                    data.data.forEach(msg => {
+                        appendMessage(msg.role, msg.content, false, msg.files || []);
+                    });
+
+                    if (data.data.length === 0) {
+                        container.innerHTML = '<div class="empty">会话已恢复，可以继续对话</div>';
+                    }
+                }
+            } catch (e) {
+                console.error('加载历史消息失败:', e);
+            }
+        }
 
         // 从用户指定的根目录加载技能
         async function loadSkillsFromRoot() {
@@ -383,6 +560,9 @@
                     const sessionId = data.data.sessionId;
                     currentSessionId = sessionId;
 
+                    // 保存到 localStorage
+                    localStorage.setItem(SESSION_KEY, sessionId);
+
                     // 显示当前会话 ID
                     document.getElementById('current-session').innerHTML =
                         `<code style="background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${sessionId}</code>`;
@@ -409,6 +589,27 @@
             }
         }
 
+        // 退出当前会话
+        function clearSession() {
+            if (confirm('确定要退出当前会话吗？会话记录将保留。')) {
+                // 不删除会话，只是清除前端的会话ID
+                currentSessionId = null;
+                localStorage.removeItem(SESSION_KEY);
+
+                // 隐藏聊天面板
+                document.getElementById('chat-panel').style.display = 'none';
+
+                // 重置会话显示
+                document.getElementById('current-session').textContent = '未创建';
+                document.getElementById('copy-btn').style.display = 'none';
+                document.getElementById('clear-btn').style.display = 'none';
+
+                // 清空技能选择
+                enabledSkillIds.clear();
+                renderSkillList();
+            }
+        }
+
         // 输入框回车触发加载
         document.getElementById('skill-root-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -431,13 +632,26 @@
 
             const input = document.getElementById('chat-input');
             const message = input.value.trim();
-            if (!message) return;
+            if (!message && pendingFiles.length === 0) return;
+
+            // 先上传待发送的文件
+            let uploadedFiles = [];
+            if (pendingFiles.length > 0) {
+                uploadedFiles = await uploadPendingFiles();
+            }
 
             // 清空输入框
             input.value = '';
 
-            // 显示用户消息
-            appendMessage('user', message);
+            // 构造消息文本（附带文件信息）
+            let fullMessage = message;
+            if (uploadedFiles.length > 0) {
+                const fileList = uploadedFiles.map(f => `📎 ${f.name}`).join('\n');
+                fullMessage = (message ? message + '\n\n' : '') + '【上传的文件】\n' + fileList;
+            }
+
+            // 显示用户消息（带附件）
+            appendMessage('user', fullMessage);
 
             // 禁用发送按钮
             const sendBtn = document.querySelector('#chat-input + button');
@@ -448,7 +662,7 @@
                 const res = await fetch(`${API_BASE}/api/sessions/${currentSessionId}/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({ message: fullMessage })
                 });
                 const data = await res.json();
                 if (data.code === 200 && data.data) {
@@ -465,7 +679,7 @@
         }
 
         // 添加消息到聊天窗口
-        function appendMessage(role, content) {
+        function appendMessage(role, content, scrollToBottom = true) {
             const container = document.getElementById('chat-messages');
 
             // 移除空提示
@@ -481,8 +695,10 @@
             `;
             container.appendChild(msgDiv);
 
-            // 滚动到底部
-            container.scrollTop = container.scrollHeight;
+            // 滚动到底部（可选，用于恢复历史时不滚动）
+            if (scrollToBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
         }
 
         // 加载已启用的技能
@@ -570,6 +786,142 @@
                       .replace(/</g, '&lt;')
                       .replace(/>/g, '&gt;')
                       .replace(/"/g, '&quot;');
+        }
+
+        // ========== 文件上传 ==========
+
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+
+            files.forEach(file => {
+                // 检查是否已存在
+                if (!pendingFiles.some(f => f.name === file.name)) {
+                    pendingFiles.push(file);
+                }
+            });
+
+            renderPendingFiles();
+            event.target.value = ''; // 清空，允许重复选择同一文件
+        }
+
+        function renderPendingFiles() {
+            const container = document.getElementById('upload-file-list');
+            if (pendingFiles.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = pendingFiles.map((file, index) => `
+                <span class="upload-file-tag">
+                    <span>${getFileIcon(file.name)}</span>
+                    <span class="file-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</span>
+                    <span class="file-size">${formatSize(file.size)}</span>
+                    <span class="remove-btn" onclick="removePendingFile(${index})">×</span>
+                </span>
+            `).join('');
+        }
+
+        function removePendingFile(index) {
+            pendingFiles.splice(index, 1);
+            renderPendingFiles();
+        }
+
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                pdf: '📄', xlsx: '📊', xls: '📊', csv: '📋',
+                doc: '📝', docx: '📝', txt: '📃', md: '📃',
+                zip: '📦', rar: '📦', '7z': '📦',
+                png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', webp: '🖼️',
+                html: '🌐', css: '🎨', js: '📜', ts: '📜',
+                py: '🐍', java: '☕', go: '🔧', rs: '🦀',
+                mp3: '🎵', mp4: '🎬', wav: '🎵',
+                ppt: '📽️', pptx: '📽️'
+            };
+            return icons[ext] || '📁';
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        async function uploadPendingFiles() {
+            if (pendingFiles.length === 0 || !currentSessionId) return [];
+
+            const uploaded = [];
+            const progress = document.getElementById('upload-progress');
+
+            for (let i = 0; i < pendingFiles.length; i++) {
+                const file = pendingFiles[i];
+                progress.textContent = `上传 ${i + 1}/${pendingFiles.length}: ${file.name}`;
+
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('sessionId', currentSessionId);
+
+                    const res = await fetch(`${API_BASE}/api/files/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+
+                    if (data.code === 200) {
+                        uploaded.push({
+                            name: file.name,
+                            path: data.data,
+                            size: file.size
+                        });
+                    } else {
+                        console.error('上传失败:', file.name, data.message);
+                    }
+                } catch (e) {
+                    console.error('上传出错:', file.name, e);
+                }
+            }
+
+            progress.textContent = '';
+            pendingFiles = [];
+            renderPendingFiles();
+            return uploaded;
+        }
+
+        // 修改 appendMessage 支持文件附件
+        function appendMessage(role, content, scrollToBottom = true, files = []) {
+            const container = document.getElementById('chat-messages');
+
+            // 移除空提示
+            if (container.querySelector('.empty')) {
+                container.innerHTML = '';
+            }
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-message ' + role;
+
+            let html = `<div class="role-label">${role === 'user' ? '你' : '助手'}</div>
+                        <div class="bubble">${escapeHtml(content)}</div>`;
+
+            // 渲染文件附件
+            if (files && files.length > 0) {
+                html += '<div class="file-attachments">' + files.map(f => `
+                    <span class="file-item" onclick="window.open('${escapeHtml(f.url)}', '_blank')">
+                        <span class="file-icon">${getFileIcon(f.filename)}</span>
+                        <span class="file-name">${escapeHtml(f.filename)}</span>
+                        <span class="file-size">${formatSize(f.size)}</span>
+                        <span style="color: rgba(255,255,255,0.7)">↓</span>
+                    </span>
+                `).join('') + '</div>';
+            }
+
+            msgDiv.innerHTML = html;
+            container.appendChild(msgDiv);
+
+            if (scrollToBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
         }
     </script>
 </body>

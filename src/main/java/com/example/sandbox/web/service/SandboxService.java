@@ -52,4 +52,12 @@ public interface SandboxService {
      * @return 执行结果
      */
     ExecutionResult writeFile(String sessionId, String path, String content);
+
+    /**
+     * 判断会话使用的沙箱是否为 AIO 类型
+     *
+     * @param sessionId 会话 ID
+     * @return true 表示 AIO 沙箱，false 表示通用沙箱
+     */
+    boolean isAioSandbox(String sessionId);
 }
