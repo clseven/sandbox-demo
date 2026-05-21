@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -19,4 +20,10 @@ public interface ConversationSessionRepository extends JpaRepository<Conversatio
 
     @Query("SELECT s FROM ConversationSessionEntity s LEFT JOIN FETCH s.enabledSkillIds WHERE s.id = :id")
     Optional<ConversationSessionEntity> findByIdWithSkills(@Param("id") String id);
+
+    /**
+     * 查找所有有沙箱 ID 的会话
+     */
+    @Query("SELECT s FROM ConversationSessionEntity s WHERE s.sandboxId IS NOT NULL")
+    List<ConversationSessionEntity> findAllWithSandbox();
 }

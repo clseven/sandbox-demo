@@ -22,6 +22,9 @@ public class ConversationSessionEntity {
     @Column(name = "sandbox_id", length = 128)
     private String sandboxId;
 
+    @Column(name = "aio_endpoint", length = 64)
+    private String aioEndpoint;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -58,6 +61,15 @@ public class ConversationSessionEntity {
 
     public void setSandboxId(String sandboxId) {
         this.sandboxId = sandboxId;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public String getAioEndpoint() {
+        return aioEndpoint;
+    }
+
+    public void setAioEndpoint(String aioEndpoint) {
+        this.aioEndpoint = aioEndpoint;
         this.updatedAt = LocalDateTime.now();
     }
 

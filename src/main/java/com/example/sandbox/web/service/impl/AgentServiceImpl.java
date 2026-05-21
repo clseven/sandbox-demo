@@ -46,6 +46,11 @@ public class AgentServiceImpl implements AgentService {
         String sessionId = session.getSessionId();
         CompletableFuture.runAsync(() -> {
             try {
+                // 如果数据库中已有沙箱记录，跳过创建
+                if (sandboxService.hasSandbox(sessionId)) {
+                    log.info("Sandbox already exists for session {}, skipping", sessionId);
+                    return;
+                }
                 sandboxService.createSandbox(sessionId);
                 log.info("Sandbox created async for session: {}", sessionId);
             } catch (Exception e) {

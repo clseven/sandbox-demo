@@ -8,6 +8,7 @@ import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -67,14 +68,21 @@ public class AioSandboxClient implements SandboxClient {
     @Override
     public byte[] downloadFile(String path) {
         try {
+            String uri = org.springframework.web.util.UriComponentsBuilder
+                    .fromPath("/v1/file/download")
+                    .queryParam("path", path)
+                    .build()
+                    .toUriString();
+            log.debug("File: download {}", uri);
+
             return webClient.get()
-                    .uri("/v1/file/download?path=" + java.net.URLEncoder.encode(path, StandardCharsets.UTF_8))
+                    .uri(uri)
                     .accept(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
                     .retrieve()
                     .bodyToMono(byte[].class)
                     .block();
         } catch (Exception e) {
-            log.warn("文件下载失败: {}", e.getMessage());
+            log.warn("文件下载失败: {} - {}", path, e.getMessage());
             return null;
         }
     }
@@ -82,14 +90,236 @@ public class AioSandboxClient implements SandboxClient {
     @Override
     public byte[] screenshot() {
         try {
-            return webClient.get()
+            log.debug("Browser: GET /v1/browser/screenshot");
+            var response = webClient.get()
                     .uri("/v1/browser/screenshot")
-                    .accept(org.springframework.http.MediaType.APPLICATION_OCTET_STREAM)
+                    .accept(org.springframework.http.MediaType.IMAGE_PNG)
                     .retrieve()
-                    .bodyToMono(byte[].class)
+                    .toEntity(byte[].class)
+                    .block();
+
+            if (response != null && response.getBody() != null) {
+                log.info("截图成功，大小: {} bytes", response.getBody().length);
+                return response.getBody();
+            }
+            log.warn("截图响应为空");
+            return null;
+        } catch (Exception e) {
+            log.error("截图失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 保存文件（二进制，使用 base64 编码）
+     */
+    public boolean writeFile(String path, byte[] content) {
+        try {
+            String base64 = java.util.Base64.getEncoder().encodeToString(content);
+            Map<String, Object> body = Map.of(
+                    "file", path,
+                    "content", base64,
+                    "encoding", "base64"
+            );
+            log.debug("File: write {} ({} bytes)", path, content.length);
+
+            Map<String, Object> result = webClient.post()
+                    .uri("/v1/file/write")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            boolean success = result != null && Boolean.TRUE.equals(result.get("success"));
+            if (success) {
+                log.info("文件写入成功: {}", path);
+            } else {
+                log.warn("文件写入失败: {}", result);
+            }
+            return success;
+        } catch (Exception e) {
+            log.error("文件写入失败: {} - {}", path, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 浏览器导航到指定 URL
+     * 使用键鼠模拟操作：Ctrl+L → 输入 URL → Enter
+     *
+     * @param url 目标 URL
+     * @return 是否成功
+     */
+    public boolean navigate(String url) {
+        // 确保 URL 有协议前缀
+        String normalizedUrl = url;
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            normalizedUrl = "https://" + url;
+        }
+
+        try {
+            // 1. Ctrl+L 选中地址栏
+            log.debug("Browser: HOTKEY ctrl+l");
+            Map<String, Object> hotkeyBody = Map.of(
+                    "action_type", "HOTKEY",
+                    "keys", List.of("ctrl", "l")
+            );
+            webClient.post()
+                    .uri("/v1/browser/actions")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .bodyValue(hotkeyBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            // 2. 输入 URL（Linux 环境需要 use_clipboard: false）
+            log.debug("Browser: TYPING {}", normalizedUrl);
+            Map<String, Object> typingBody = Map.of(
+                    "action_type", "TYPING",
+                    "text", normalizedUrl,
+                    "use_clipboard", false
+            );
+            webClient.post()
+                    .uri("/v1/browser/actions")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .bodyValue(typingBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            // 3. 按 Enter
+            log.debug("Browser: PRESS enter");
+            Map<String, Object> pressBody = Map.of(
+                    "action_type", "PRESS",
+                    "key", "enter"
+            );
+            webClient.post()
+                    .uri("/v1/browser/actions")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .bodyValue(pressBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            log.info("浏览器导航成功: {}", normalizedUrl);
+            return true;
+        } catch (Exception e) {
+            log.error("浏览器导航失败: {} - {}", normalizedUrl, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 等待页面加载完成
+     * 轮询 browser/info，最多等待 maxWaitSeconds 秒
+     *
+     * @param maxWaitSeconds 最大等待秒数
+     */
+    public void waitForPageLoad(int maxWaitSeconds) {
+        try {
+            // 先等 1 秒让导航请求发出
+            Thread.sleep(1000);
+
+            for (int i = 0; i < maxWaitSeconds; i++) {
+                // 用 WAIT 操作让浏览器等待 1 秒
+                browserAction(Map.of("action_type", "WAIT", "wait", 1000));
+
+                // 检查浏览器是否可响应
+                Map<String, Object> info = browserInfo();
+                if (info != null && Boolean.TRUE.equals(info.get("success"))) {
+                    log.info("页面加载完成，等待了 {} 秒", i + 1);
+                    return;
+                }
+            }
+            log.info("页面加载等待超时（{}秒），继续执行", maxWaitSeconds);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * 执行浏览器操作（通用方法）
+     *
+     * @param action 操作参数
+     * @return 是否成功
+     */
+    public boolean browserAction(Map<String, Object> action) {
+        String actionType = (String) action.get("action_type");
+        try {
+            // 构建请求体，过滤掉空值
+            Map<String, Object> body = new java.util.HashMap<>();
+            body.put("action_type", actionType);
+
+            // 根据操作类型添加参数
+            switch (actionType) {
+                case "HOTKEY" -> {
+                    List<String> keys = (List<String>) action.get("keys");
+                    body.put("keys", keys);
+                    log.debug("Browser: HOTKEY {}", keys);
+                }
+                case "PRESS" -> {
+                    String key = (String) action.get("key");
+                    body.put("key", key);
+                    log.debug("Browser: PRESS {}", key);
+                }
+                case "TYPING" -> {
+                    String text = (String) action.get("text");
+                    Boolean useClipboard = (Boolean) action.get("use_clipboard");
+                    body.put("text", text);
+                    body.put("use_clipboard", useClipboard != null ? useClipboard : false);
+                    log.debug("Browser: TYPING {} chars", text.length());
+                }
+                case "CLICK", "MOVE_TO" -> {
+                    body.put("x", action.get("x"));
+                    body.put("y", action.get("y"));
+                    log.debug("Browser: {} ({}, {})", actionType, action.get("x"), action.get("y"));
+                }
+                case "SCROLL" -> {
+                    body.put("x", action.get("x"));
+                    body.put("y", action.get("y"));
+                    body.put("scroll_x", action.get("scroll_x"));
+                    body.put("scroll_y", action.get("scroll_y"));
+                    log.debug("Browser: SCROLL");
+                }
+                case "WAIT" -> {
+                    body.put("wait", action.get("wait"));
+                    log.debug("Browser: WAIT {}ms", action.get("wait"));
+                }
+                default -> {
+                    log.warn("未知的浏览器操作类型: {}", actionType);
+                    return false;
+                }
+            }
+
+            webClient.post()
+                    .uri("/v1/browser/actions")
+                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            log.info("浏览器操作成功: {}", actionType);
+            return true;
+        } catch (Exception e) {
+            log.error("浏览器操作失败: {} - {}", actionType, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 获取浏览器信息
+     */
+    public Map<String, Object> browserInfo() {
+        try {
+            return webClient.get()
+                    .uri("/v1/browser/info")
+                    .retrieve()
+                    .bodyToMono(Map.class)
                     .block();
         } catch (Exception e) {
-            log.warn("截图失败: {}", e.getMessage());
+            log.warn("获取浏览器信息失败: {}", e.getMessage());
             return null;
         }
     }

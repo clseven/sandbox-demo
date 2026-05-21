@@ -4,6 +4,7 @@ import com.example.sandbox.agent.SandboxAgent;
 import com.example.sandbox.aio.AioSandboxClient;
 import com.example.sandbox.web.config.AgentConfigProperties;
 import com.example.sandbox.web.exception.SessionNotFoundException;
+import com.example.sandbox.web.model.entity.ConversationSessionEntity;
 import com.example.sandbox.web.model.entity.ExecutionResult;
 import com.example.sandbox.web.model.entity.Skill;
 import com.example.sandbox.web.service.SandboxClient;
@@ -48,6 +49,9 @@ public class SandboxServiceImpl implements SandboxService {
     private final AgentConfigProperties config;
 
     @Autowired
+    private AioSandboxStore aioSandboxStore;
+
+    @Autowired
     @org.springframework.context.annotation.Lazy
     private FileSyncService fileSyncService;
 
@@ -66,6 +70,36 @@ public class SandboxServiceImpl implements SandboxService {
         sandboxAgents.put(agent.getSandboxId(), agent);
         sessionSandboxMap.put(sessionId, agent.getSandboxId());
         log.info("Registered sandbox {} for session {}", agent.getSandboxId(), sessionId);
+
+        // 如果是 AIO 沙箱，注册到 AioSandboxStore
+        if (isAioImage(config.getSandbox().getImage())) {
+            String endpoint = agent.getAioEndpoint();
+            aioSandboxStore.register(sessionId, agent.getSandboxId(), endpoint);
+
+            // 持久化到数据库
+            persistSandboxInfo(sessionId, agent.getSandboxId(), endpoint);
+        }
+    }
+
+    /**
+     * 持久化沙箱信息到数据库
+     */
+    @Transactional
+    public void persistSandboxInfo(String sessionId, String sandboxId, String aioEndpoint) {
+        try {
+            var session = sessionRepository.findById(sessionId);
+            if (session.isPresent()) {
+                ConversationSessionEntity entity = session.get();
+                entity.setSandboxId(sandboxId);
+                entity.setAioEndpoint(aioEndpoint);
+                sessionRepository.save(entity);
+                log.info("持久化沙箱信息: sessionId={}, sandboxId={}, endpoint={}", sessionId, sandboxId, aioEndpoint);
+            } else {
+                log.warn("会话 {} 不存在，无法持久化沙箱信息", sessionId);
+            }
+        } catch (Exception e) {
+            log.error("持久化沙箱信息失败: sessionId={}", sessionId, e);
+        }
     }
 
     @Override
@@ -158,6 +192,11 @@ public class SandboxServiceImpl implements SandboxService {
 
     @Override
     public boolean hasSandbox(String sessionId) {
+        // 优先检查 AioSandboxStore（支持重启恢复）
+        if (isAioImage(config.getSandbox().getImage()) && aioSandboxStore.hasSandbox(sessionId)) {
+            return true;
+        }
+
         String sandboxId = sessionSandboxMap.get(sessionId);
         if (sandboxId == null) {
             return false;
@@ -279,6 +318,12 @@ public class SandboxServiceImpl implements SandboxService {
      * @return AIO Sandbox 客户端
      */
     public AioSandboxClient getAioClient(String sessionId) {
+        // 优先从 AioSandboxStore 获取（支持重启恢复）
+        if (aioSandboxStore.hasSandbox(sessionId)) {
+            return aioSandboxStore.getClient(sessionId);
+        }
+
+        // 回退到从 SandboxAgent 获取
         SandboxAgent agent = getSandbox(sessionId);
         String endpoint = agent.getAioEndpoint();
         log.info("AIO endpoint for session {}: {}", sessionId, endpoint);
