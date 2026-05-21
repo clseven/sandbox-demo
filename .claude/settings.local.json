@@ -1,7 +1,1 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(curl -v -X POST http://localhost:8080/v1/shell/sessions/create -H \"Content-Type: application/json\" -d '{\"\"\"\"id\"\"\"\":\"\"\"\"test2\"\"\"\",\"\"\"\"exec_dir\"\"\"\":\"\"\"\"/home/gem\"\"\"\"}')"
-    ]
-  }
-}
+{}
