@@ -1,10 +1,14 @@
 package com.example.sandbox.web.service.impl;
 
+import com.example.sandbox.web.context.UserContext;
+import com.example.sandbox.web.exception.UnauthorizedException;
 import com.example.sandbox.web.model.entity.ChatMessage;
 import com.example.sandbox.web.model.entity.ConversationSession;
+import com.example.sandbox.web.model.entity.Skill;
+import com.example.sandbox.web.model.entity.ToolDefinition;
 import com.example.sandbox.web.service.AgentService;
+import com.example.sandbox.web.service.SkillService;
 import com.example.sandbox.web.service.Tool;
-import com.example.sandbox.web.service.LlmService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +32,13 @@ public class AgentServiceImpl implements AgentService {
     private ConversationServiceImpl conversationService;
 
     @Autowired
-    private LlmService llmService;
+    private ZhipuLlmServiceImpl plannerLlm;
+
+    @Autowired
+    private DeepSeekLlmServiceImpl executorLlm;
+
+    @Autowired
+    private SkillService skillService;
 
     @Autowired
     private List<Tool> tools;
@@ -69,7 +79,13 @@ public class AgentServiceImpl implements AgentService {
 
     @Override
     public ConversationSession getSession(String sessionId) {
-        return conversationService.getSession(sessionId);
+        ConversationSession session = conversationService.getSession(sessionId);
+        Long currentUserId = UserContext.getCurrentUserId();
+        Long sessionUserId = session.getUserId();
+        if (sessionUserId != null && !sessionUserId.equals(currentUserId)) {
+            throw new UnauthorizedException("Session does not belong to current user");
+        }
+        return session;
     }
 
     @Override
@@ -103,13 +119,23 @@ public class AgentServiceImpl implements AgentService {
                     return "ALL".equals(type) || targetType.equals(type);
                 })
                 .toList();
-        log.info("【工具过滤】沙箱类型: {}, 可用工具: {}", targetType, filteredTools.stream().map(t -> t.getDefinition().getName()).toList());
+        List<ToolDefinition> toolDefinitions = filteredTools.stream()
+                .map(Tool::getDefinition)
+                .toList();
+        log.info("【工具过滤】沙箱类型: {}, 可用工具: {}", targetType,
+                filteredTools.stream().map(t -> t.getDefinition().getName()).toList());
 
-        // 5. 创建 ReAct Agent 并执行
-        ReactAgent reactAgent = new ReactAgent(llmService, filteredTools, systemPrompt);
+        // 5. Phase 1: PlanAgent 规划
+        List<Skill> skills = skillService.listSkills();
+        PlanAgent planAgent = new PlanAgent(plannerLlm, toolDefinitions, skills);
+        String plan = planAgent.plan(userMessage);
+        log.info("【规划结果】{}", plan.length() > 300 ? plan.substring(0, 300) + "..." : plan);
+
+        // 6. Phase 2: ReactAgent 执行
+        ReactAgent reactAgent = new ReactAgent(executorLlm, filteredTools, systemPrompt, plan);
         String response = reactAgent.run(sessionId, userMessage);
 
-        // 6. 存储助手响应
+        // 7. 存储助手响应
         conversationService.addAssistantMessage(sessionId, response);
         log.info("【助手输出】会话: {} 内容: {}", sessionId, response);
 

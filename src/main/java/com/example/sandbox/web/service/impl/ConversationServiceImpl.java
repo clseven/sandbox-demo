@@ -1,7 +1,9 @@
 package com.example.sandbox.web.service.impl;
 
+import com.example.sandbox.web.context.UserContext;
 import com.example.sandbox.web.exception.SessionNotFoundException;
 import com.example.sandbox.web.exception.SkillNotFoundException;
+import com.example.sandbox.web.exception.UnauthorizedException;
 import com.example.sandbox.web.model.converter.EntityConverter;
 import com.example.sandbox.web.model.entity.ChatMessage;
 import com.example.sandbox.web.model.entity.ChatMessageEntity;
@@ -200,8 +202,10 @@ public class ConversationServiceImpl implements ConversationService {
      */
     @Transactional
     public ConversationSession createSession() {
+        Long userId = UserContext.getCurrentUserId();
         ConversationSessionEntity entity = new ConversationSessionEntity();
         entity.setId(UUID.randomUUID().toString());
+        entity.setUserId(userId);
         entity = sessionRepository.save(entity);
         return EntityConverter.toConversationSession(entity);
     }
@@ -280,5 +284,16 @@ public class ConversationServiceImpl implements ConversationService {
         ConversationSessionEntity entity = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
         return EntityConverter.toConversationSession(entity);
+    }
+
+    /**
+     * 获取用户的所有会话
+     */
+    @Transactional(readOnly = true)
+    public List<ConversationSession> listUserSessions(Long userId) {
+        List<ConversationSessionEntity> entities = sessionRepository.findByUserIdOrderByUpdatedAtDesc(userId);
+        return entities.stream()
+                .map(EntityConverter::toConversationSession)
+                .toList();
     }
 }

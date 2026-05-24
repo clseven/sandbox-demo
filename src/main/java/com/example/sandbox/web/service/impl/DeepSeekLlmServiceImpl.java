@@ -22,15 +22,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 智谱 AI LLM 服务实现
- *
- * @author example
- * @date 2026/05/14
+ * DeepSeek LLM 服务实现（OpenAI 兼容 API）
  */
 @Service
-public class ZhipuLlmServiceImpl implements LlmService {
+public class DeepSeekLlmServiceImpl implements LlmService {
 
-    private static final Logger log = LoggerFactory.getLogger(ZhipuLlmServiceImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(DeepSeekLlmServiceImpl.class);
 
     @Autowired
     private AgentConfigProperties configProperties;
@@ -41,23 +38,18 @@ public class ZhipuLlmServiceImpl implements LlmService {
     private WebClient webClient;
     private String model;
 
-    /**
-     * 初始化 WebClient
-     */
     @Autowired
     public void initWebClient() {
-        var planner = configProperties.getLlm().getPlanner();
-        String apiUrl = planner.getApiUrl();
-        String apiKey = planner.getApiKey();
-        this.model = planner.getModel() != null ? planner.getModel() : "glm-4";
+        var executor = configProperties.getLlm().getExecutor();
+        this.model = executor.getModel() != null ? executor.getModel() : "deepseek-v4-flash";
 
         this.webClient = WebClient.builder()
-                .baseUrl(apiUrl)
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .baseUrl(executor.getApiUrl())
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + executor.getApiKey())
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
 
-        log.info("Initialized Zhipu LLM service with model: {}", this.model);
+        log.info("Initialized DeepSeek LLM service with model: {}", this.model);
     }
 
     @Override
@@ -89,7 +81,6 @@ public class ZhipuLlmServiceImpl implements LlmService {
 
             requestBody.put("messages", chatMessages);
 
-            log.info("【LLM 请求】messages 数量: {}", chatMessages.size());
             String response = webClient.post()
                     .uri("/chat/completions")
                     .bodyValue(requestBody)
@@ -98,18 +89,10 @@ public class ZhipuLlmServiceImpl implements LlmService {
                     .block();
 
             JsonNode responseJson = objectMapper.readTree(response);
-            String assistantMessage = responseJson
-                    .path("choices")
-                    .path(0)
-                    .path("message")
-                    .path("content")
-                    .asText();
-
-            log.info("【LLM 响应】内容: {}", assistantMessage);
-            return assistantMessage;
+            return responseJson.path("choices").path(0).path("message").path("content").asText();
 
         } catch (Exception e) {
-            log.error("LLM call failed", e);
+            log.error("DeepSeek LLM call failed", e);
             return "抱歉，发生了错误：" + e.getMessage();
         }
     }
@@ -144,9 +127,6 @@ public class ZhipuLlmServiceImpl implements LlmService {
                     toolsApi.add(tool.toApiFormat());
                 }
                 requestBody.put("tools", toolsApi);
-                log.info("【LLM 请求】messages: {} tools: {}", chatMessages.size(), toolsApi.size());
-            } else {
-                log.info("【LLM 请求】messages: {} tools: 0", chatMessages.size());
             }
 
             String response = webClient.post()
@@ -157,34 +137,29 @@ public class ZhipuLlmServiceImpl implements LlmService {
                     .block();
 
             JsonNode responseJson = objectMapper.readTree(response);
-            log.info("【LLM 响应】原始: {}", response);
-
             JsonNode messageNode = responseJson.path("choices").path(0).path("message");
             String content = messageNode.path("content").asText();
-            log.debug("LLM text response: {}", content);
 
+            // 优先解析原生 tool_calls
             JsonNode toolCallsNode = messageNode.path("tool_calls");
             if (!toolCallsNode.isMissingNode() && toolCallsNode.isArray() && toolCallsNode.size() > 0) {
                 JsonNode toolCallNode = toolCallsNode.get(0);
                 String toolName = toolCallNode.path("function").path("name").asText();
                 String argumentsStr = toolCallNode.path("function").path("arguments").asText();
-                String thinking = content;
-                log.info("工具调用检测 - tool_name: {}, content: {}", toolName, content);
 
                 if (isValidToolName(toolName)) {
                     try {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> arguments = objectMapper.readValue(argumentsStr, Map.class);
-                        log.info("LLM 工具调用: {} 参数: {} 思考: {}", toolName, arguments, thinking);
-                        return LlmResponse.toolCall(new ToolCall(toolName, arguments), thinking);
+                        log.info("DeepSeek 工具调用: {} 参数: {}", toolName, arguments);
+                        return LlmResponse.toolCall(new ToolCall(toolName, arguments), content);
                     } catch (Exception e) {
                         log.debug("Failed to parse tool arguments: {}", argumentsStr);
                     }
-                } else {
-                    log.debug("Invalid tool name detected: {}, falling back to ReAct parsing", toolName);
                 }
             }
 
+            // 回退：ReAct 文本解析
             LlmResponse reactResponse = parseReActToolCall(content);
             if (reactResponse != null) {
                 return reactResponse;
@@ -193,47 +168,28 @@ public class ZhipuLlmServiceImpl implements LlmService {
             return LlmResponse.text(content);
 
         } catch (Exception e) {
-            log.error("LLM call with tools failed", e);
+            log.error("DeepSeek LLM call with tools failed", e);
             return LlmResponse.text("抱歉，发生了错误：" + e.getMessage());
         }
     }
 
     private boolean isValidToolName(String toolName) {
-        if (toolName == null || toolName.isEmpty()) {
-            return false;
-        }
+        if (toolName == null || toolName.isEmpty()) return false;
         return toolName.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
     }
 
     private LlmResponse parseReActToolCall(String content) {
-        if (content == null || content.isEmpty()) {
-            return null;
-        }
-
-        String thinking = null;
-        int actionIndex = content.toLowerCase().indexOf("action:");
-        if (actionIndex > 0) {
-            thinking = content.substring(0, actionIndex).trim();
-        } else {
-            thinking = content;
-        }
+        if (content == null || content.isEmpty()) return null;
 
         Pattern actionPattern = Pattern.compile("Action:\\s*(\\w+)", Pattern.CASE_INSENSITIVE);
         Matcher actionMatcher = actionPattern.matcher(content);
-
-        if (!actionMatcher.find()) {
-            return null;
-        }
+        if (!actionMatcher.find()) return null;
 
         String toolName = actionMatcher.group(1).trim();
-        log.debug("检测到 ReAct Action: {}", toolName);
 
         Pattern inputPattern = Pattern.compile("Action\\s*Input:\\s*", Pattern.CASE_INSENSITIVE);
         Matcher inputMatcher = inputPattern.matcher(content);
-
-        if (!inputMatcher.find()) {
-            return null;
-        }
+        if (!inputMatcher.find()) return null;
 
         int inputStart = inputMatcher.end();
         String remaining = content.substring(inputStart);
@@ -241,10 +197,15 @@ public class ZhipuLlmServiceImpl implements LlmService {
         Map<String, Object> arguments = null;
 
         if (remaining.trim().startsWith("{")) {
-            int braceStart = remaining.indexOf('{');
-            String inputContent = extractBalancedBraces(remaining, braceStart);
+            String inputContent = extractBalancedBraces(remaining, remaining.indexOf('{'));
             if (inputContent != null) {
-                arguments = parseActionInput(inputContent);
+                try {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> parsed = objectMapper.readValue("{" + inputContent + "}", Map.class);
+                    arguments = parsed;
+                } catch (Exception e) {
+                    arguments = parseKeyValueLines(inputContent);
+                }
             }
         }
 
@@ -253,11 +214,10 @@ public class ZhipuLlmServiceImpl implements LlmService {
         }
 
         if (arguments != null && !arguments.isEmpty()) {
-            log.debug("解析 ReAct 工具调用: {} 参数: {} 思考: {}", toolName, arguments, thinking);
-            return LlmResponse.toolCall(new ToolCall(toolName, arguments), thinking);
+            log.debug("ReAct 工具调用: {} 参数: {}", toolName, arguments);
+            return LlmResponse.toolCall(new ToolCall(toolName, arguments), content);
         }
 
-        log.warn("Failed to parse Action Input for tool: {}", toolName);
         return null;
     }
 
@@ -265,72 +225,20 @@ public class ZhipuLlmServiceImpl implements LlmService {
         Map<String, Object> arguments = new HashMap<>();
         Pattern kvPattern = Pattern.compile("(\\w+)\\s*=\\s*(.*)");
         String[] lines = content.split("\\n");
-
         for (String line : lines) {
             line = line.trim();
             if (line.isEmpty()) continue;
-
             Matcher matcher = kvPattern.matcher(line);
             if (matcher.matches()) {
-                String key = matcher.group(1);
-                String value = matcher.group(2).trim();
-                arguments.put(key, value);
+                arguments.put(matcher.group(1), matcher.group(2).trim());
             }
         }
-
         return arguments.isEmpty() ? null : arguments;
-    }
-
-    private Map<String, Object> parseActionInput(String inputContent) {
-        try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> arguments = objectMapper.readValue("{" + inputContent + "}", Map.class);
-            return arguments;
-        } catch (Exception e) {
-            log.debug("JSON 格式无效，尝试 key=value 格式");
-        }
-
-        Map<String, Object> arguments = new HashMap<>();
-        Pattern kvPattern = Pattern.compile("(\\w+)\\s*=\\s*");
-        Matcher kvMatcher = kvPattern.matcher(inputContent);
-
-        int lastEnd = 0;
-        String lastKey = null;
-
-        while (kvMatcher.find()) {
-            if (lastKey != null) {
-                String value = inputContent.substring(lastEnd, kvMatcher.start()).trim();
-                value = cleanValue(value);
-                arguments.put(lastKey, value);
-            }
-            lastKey = kvMatcher.group(1);
-            lastEnd = kvMatcher.end();
-        }
-
-        if (lastKey != null && lastEnd < inputContent.length()) {
-            String value = inputContent.substring(lastEnd).trim();
-            value = cleanValue(value);
-            arguments.put(lastKey, value);
-        }
-
-        return arguments.isEmpty() ? null : arguments;
-    }
-
-    private String cleanValue(String value) {
-        if (value == null || value.isEmpty()) {
-            return value;
-        }
-        value = value.trim();
-        if (value.endsWith(",")) {
-            value = value.substring(0, value.length() - 1).trim();
-        }
-        return value;
     }
 
     private String extractBalancedBraces(String content, int start) {
         int depth = 0;
         int end = start;
-
         for (int i = start; i < content.length(); i++) {
             char c = content.charAt(i);
             if (c == '{') {
@@ -343,11 +251,7 @@ public class ZhipuLlmServiceImpl implements LlmService {
                 }
             }
         }
-
-        if (depth != 0) {
-            return null;
-        }
-
+        if (depth != 0) return null;
         return content.substring(start + 1, end);
     }
 }

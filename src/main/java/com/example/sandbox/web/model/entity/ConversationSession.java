@@ -45,6 +45,11 @@ public class ConversationSession {
      */
     private LocalDateTime updatedAt;
 
+    /**
+     * 所属用户 ID
+     */
+    private Long userId;
+
     public ConversationSession() {
         this.sessionId = UUID.randomUUID().toString();
         this.messages = new ArrayList<>();
@@ -80,6 +85,10 @@ public class ConversationSession {
 
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Long getUserId() {
+        return userId;
     }
 
     /**

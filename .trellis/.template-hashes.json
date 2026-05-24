@@ -72,6 +72,24 @@
     ".trellis/scripts/init_developer.py": "0943f1c240993649ab89b91a2c5b379e84daa8c53b35f0490774bff05a552873",
     ".trellis/scripts/task.py": "e2614fbfc1308c90c0708a11475ca6684ea0a1e2a845140300192229589a2f1f",
     ".trellis/scripts/__init__.py": "1242be5b972094c2e141aecbe81a4efd478f6534e3d5e28306374e6a18fcf46c",
-    ".trellis/workflow.md": "94810f640dcfe6fdaebcf6e9d0d6cec554610192c4f953b288029570ba8bc89d"
+    ".trellis/workflow.md": "94810f640dcfe6fdaebcf6e9d0d6cec554610192c4f953b288029570ba8bc89d",
+    ".trellis/scripts/common/__pycache__/active_task.cpython-312.pyc": "9b1448110929194f725fc3353a81a671cc0e5006e66456f80c3086b4047d58a8",
+    ".trellis/scripts/common/__pycache__/config.cpython-312.pyc": "8985e0d06736cfc0571ca60f0723e2fa2e8772274915b70244131e7f23e06c25",
+    ".trellis/scripts/common/__pycache__/git.cpython-312.pyc": "5fb894633ce872823e322df7edb7336ab7132cd1b9cb85dccd53c31578c7495f",
+    ".trellis/scripts/common/__pycache__/git_context.cpython-312.pyc": "d435ce4b37efeb7404a24aa25dda976211b40ed1d17dec1fc09e8d258b4aa3f6",
+    ".trellis/scripts/common/__pycache__/io.cpython-312.pyc": "273d58b03af06748f48e9d14e21342d18b597871026077476632f1799d73a9ee",
+    ".trellis/scripts/common/__pycache__/log.cpython-312.pyc": "fc70c7763f50300d513e27939bff0a9c138a8bcdaffe2aae330085c52cd56130",
+    ".trellis/scripts/common/__pycache__/packages_context.cpython-312.pyc": "404f89648c25051b5a4787103c6c8087621e8d5f32bc62916393de1506095f5e",
+    ".trellis/scripts/common/__pycache__/paths.cpython-312.pyc": "909024967f02ae8b0572a7ad9cbfaafc9281f4620a9d25a3d914534e009fbcb6",
+    ".trellis/scripts/common/__pycache__/safe_commit.cpython-312.pyc": "efc8046a7e47ce1f5f81b0b20ae90dae37a7bebeee6aebe3a4f863b3c6ecf286",
+    ".trellis/scripts/common/__pycache__/session_context.cpython-312.pyc": "a88e60fac2fd689fa7e2362c44a8ff797c4298192cd7ec7661126f2bd91edc25",
+    ".trellis/scripts/common/__pycache__/tasks.cpython-312.pyc": "dd9664ceb4cda06874d7dead2e86d88d0b53d780b14a6b029e15c2ac04ade675",
+    ".trellis/scripts/common/__pycache__/task_context.cpython-312.pyc": "57212d67092908be2968889874e565283ae2bcd0c211b52aed6a0935363efd43",
+    ".trellis/scripts/common/__pycache__/task_store.cpython-312.pyc": "d8227cc2bfc487906cc11382552a2793569aed347eb87c63721b250f5def3d76",
+    ".trellis/scripts/common/__pycache__/task_utils.cpython-312.pyc": "6849a4c54afcfa037744245c8537daf3fc0acb19e468a133101795c330821a68",
+    ".trellis/scripts/common/__pycache__/trellis_config.cpython-312.pyc": "29cf70436a36c052b7b49fc62568fbc228437a57e0cf93c32ee962530fb9f4bc",
+    ".trellis/scripts/common/__pycache__/types.cpython-312.pyc": "e4a6224fcbe2d1db5e2c8d74cacc307bfaf60ad107090f9ce4b013fb583544dc",
+    ".trellis/scripts/common/__pycache__/workflow_phase.cpython-312.pyc": "0ec0a4473ae38a2120d352dfc86a4c64d8bffa635f8ff9314ce8e9331a68dd88",
+    ".trellis/scripts/common/__pycache__/__init__.cpython-312.pyc": "d866e7aabdbfdf57c045cb23c718f0b44abca1f249dad75312ee488788c5ff34"
   }
 }

@@ -6,6 +6,7 @@ import com.example.sandbox.web.service.impl.SandboxClientFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Base64;
@@ -24,6 +25,9 @@ public class DownloadFileTool implements Tool {
 
     @Autowired
     private SandboxClientFactory factory;
+
+    @Value("${app.base-url:http://localhost:8081}")
+    private String baseUrl;
 
     @Override
     public ToolDefinition getDefinition() {
@@ -66,7 +70,7 @@ public class DownloadFileTool implements Tool {
             String encodedPath = java.net.URLEncoder.encode(path, java.nio.charset.StandardCharsets.UTF_8);
 
             log.info("下载文件成功: {} ({} bytes)", path, content.length);
-            String downloadUrl = "/api/sessions/" + sessionId + "/aio/download?path=" + encodedPath;
+            String downloadUrl = baseUrl + "/api/sessions/" + sessionId + "/aio/download?path=" + encodedPath;
 
             // 判断是否为图片
             boolean isImage = path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".jpeg") || path.endsWith(".gif");

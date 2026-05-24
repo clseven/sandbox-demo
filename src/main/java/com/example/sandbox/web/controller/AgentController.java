@@ -1,5 +1,6 @@
 package com.example.sandbox.web.controller;
 
+import com.example.sandbox.web.context.UserContext;
 import com.example.sandbox.web.model.entity.ChatMessage;
 import com.example.sandbox.web.model.entity.ConversationSession;
 import com.example.sandbox.web.model.request.ChatRequest;
@@ -7,6 +8,7 @@ import com.example.sandbox.web.model.response.ApiResponse;
 import com.example.sandbox.web.model.response.SessionResponse;
 import com.example.sandbox.web.service.AgentService;
 import com.example.sandbox.web.service.ConversationService;
+import com.example.sandbox.web.service.impl.ConversationServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +30,22 @@ public class AgentController {
 
     @Autowired
     private ConversationService conversationService;
+
+    @Autowired
+    private ConversationServiceImpl conversationServiceImpl;
+
+    /**
+     * 列出当前用户的所有会话
+     */
+    @GetMapping
+    public ApiResponse<List<SessionResponse>> listSessions() {
+        Long userId = UserContext.getCurrentUserId();
+        List<ConversationSession> sessions = conversationServiceImpl.listUserSessions(userId);
+        List<SessionResponse> responses = sessions.stream()
+                .map(this::toSessionResponse)
+                .toList();
+        return ApiResponse.success(responses);
+    }
 
     /**
      * 创建会话

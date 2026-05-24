@@ -359,10 +359,235 @@
             color: #666;
             margin-top: 4px;
         }
+        /* === Markdown 渲染样式 === */
+        .chat-message.assistant .bubble {
+            white-space: normal;
+        }
+        .chat-message.assistant .bubble h1,
+        .chat-message.assistant .bubble h2,
+        .chat-message.assistant .bubble h3,
+        .chat-message.assistant .bubble h4 {
+            margin: 12px 0 6px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        .chat-message.assistant .bubble h1 { font-size: 1.4em; }
+        .chat-message.assistant .bubble h2 { font-size: 1.25em; }
+        .chat-message.assistant .bubble h3 { font-size: 1.1em; }
+        .chat-message.assistant .bubble p {
+            margin: 4px 0 8px;
+        }
+        .chat-message.assistant .bubble ul,
+        .chat-message.assistant .bubble ol {
+            padding-left: 20px;
+            margin: 4px 0 8px;
+        }
+        .chat-message.assistant .bubble li {
+            margin-bottom: 2px;
+        }
+        .chat-message.assistant .bubble pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 12px 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 8px 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .chat-message.assistant .bubble pre code {
+            background: none;
+            padding: 0;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        }
+        .chat-message.assistant .bubble code {
+            background: rgba(0,0,0,0.07);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .chat-message.assistant .bubble blockquote {
+            border-left: 3px solid #4CAF50;
+            padding-left: 12px;
+            margin: 8px 0;
+            color: #555;
+        }
+        .chat-message.assistant .bubble table {
+            border-collapse: collapse;
+            margin: 8px 0;
+            display: block;
+            overflow-x: auto;
+        }
+        .chat-message.assistant .bubble th,
+        .chat-message.assistant .bubble td {
+            border: 1px solid #ddd;
+            padding: 6px 12px;
+            text-align: left;
+            font-size: 13px;
+        }
+        .chat-message.assistant .bubble th {
+            background: #f5f5f5;
+            font-weight: 600;
+        }
+        .chat-message.assistant .bubble a {
+            color: #2196F3;
+            text-decoration: none;
+        }
+        .chat-message.assistant .bubble a:hover {
+            text-decoration: underline;
+        }
+        .chat-message.assistant .bubble hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 12px 0;
+        }
+        .chat-message.assistant .bubble img {
+            max-width: 100%;
+            border-radius: 4px;
+        }
+        .chat-message.assistant .bubble strong {
+            font-weight: 600;
+        }
+        /* highlight.js 在 assistant bubble 里的适配 */
+        .chat-message.assistant .bubble .hljs {
+            background: #282c34;
+            padding: 0; /* pre 已经处理了 padding */
+        }
+        /* === 登录遮罩 === */
+        #auth-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        #auth-overlay.hidden {
+            display: none;
+        }
+        .auth-card {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            width: 360px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        .auth-card h2 {
+            margin: 0 0 8px;
+            color: #333;
+            font-size: 20px;
+        }
+        .auth-card .sub {
+            color: #999;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+        .auth-card input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            box-sizing: border-box;
+        }
+        .auth-card input:focus {
+            border-color: #4CAF50;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(76,175,80,0.15);
+        }
+        .auth-card .btn-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 4px;
+        }
+        .auth-card button {
+            flex: 1;
+            padding: 10px 0;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .auth-card .btn-login {
+            background: #4CAF50;
+            color: white;
+        }
+        .auth-card .btn-login:hover {
+            background: #45a049;
+        }
+        .auth-card .btn-register {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .auth-card .btn-register:hover {
+            background: #e0e0e0;
+        }
+        .auth-card .error-msg {
+            color: #f44336;
+            font-size: 13px;
+            margin-bottom: 8px;
+            display: none;
+        }
+        /* === 用户信息栏 === */
+        #user-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        #user-bar .user-name {
+            font-weight: 600;
+            color: #333;
+        }
+        #user-bar button {
+            padding: 6px 14px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        #user-bar button:hover {
+            background: #e0e0e0;
+        }
+        .session-selector select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 200px;
+            margin-right: 8px;
+        }
     </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
 </head>
 <body>
+    <!-- 登录遮罩 -->
+    <div id="auth-overlay">
+        <div class="auth-card">
+            <h2>登录 / 注册</h2>
+            <p class="sub">输入账号密码，没有账号将自动注册</p>
+            <div class="error-msg" id="auth-error"></div>
+            <input type="text" id="auth-username" placeholder="用户名" autocomplete="username">
+            <input type="password" id="auth-password" placeholder="密码" autocomplete="current-password">
+            <div class="btn-row">
+                <button class="btn-login" onclick="handleLogin()">登录</button>
+                <button class="btn-register" onclick="handleRegister()">注册</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
+        <!-- 用户信息栏 -->
+        <div id="user-bar" style="display: none;">
+            <span>👤</span>
+            <span class="user-name" id="display-username"></span>
+            <button onclick="handleLogout()">退出登录</button>
+        </div>
+
         <h1>🚀 Superpowers 技能管理</h1>
         <p class="subtitle">为 Agent 会话配置可用的技能</p>
 
@@ -387,11 +612,14 @@
                 </div>
 
                 <div class="session-selector" id="session-section" style="display: none;">
-                    <label>当前会话：</label>
-                    <span id="current-session" style="color: #666;">未创建</span>
-                    <button onclick="createSession()" style="margin-left: 12px;">创建新会话</button>
-                    <button onclick="copySessionId()" id="copy-btn" style="margin-left: 8px; background: #2196F3; display: none;">复制 ID</button>
-                    <button onclick="clearSession()" id="clear-btn" style="margin-left: 8px; background: #f44336; display: none;">退出</button>
+                    <label>会话：</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <select id="session-select" onchange="switchSession()" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 200px;">
+                            <option value="">-- 新建会话 --</option>
+                        </select>
+                        <button onclick="createSession()" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">＋</button>
+                        <button onclick="copySessionId()" id="copy-btn" style="padding: 8px 12px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; display: none;">复制 ID</button>
+                    </div>
                 </div>
 
                 <div class="skill-list" id="skill-list">
@@ -425,60 +653,184 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
     <script>
+        // 配置 marked 集成 highlight.js 代码高亮
+        marked.setOptions({
+            highlight: function(code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    return hljs.highlight(code, { language: lang }).value;
+                }
+                return hljs.highlightAuto(code).value;
+            },
+            langPrefix: 'hljs language-',
+            breaks: true,
+            gfm: true
+        });
+
         const API_BASE = '';
         let currentSessionId = null;
         let allSkills = [];
         let enabledSkillIds = new Set();
         const SESSION_KEY = 'agent_session_id';
+        const AUTH_KEY = 'auth_token';
+        const SKILL_ROOT_KEY = 'skill_root';
         let pendingFiles = []; // 待上传文件
 
-        // 页面加载时初始化
+        // ========== Auth Helper ==========
+        function apiFetch(url, options = {}) {
+            const token = localStorage.getItem(AUTH_KEY);
+            if (token) {
+                options.headers = options.headers || {};
+                options.headers['Authorization'] = 'Bearer ' + token;
+            }
+            return fetch(url, options);
+        }
+
+        function isAuthenticated() {
+            return !!localStorage.getItem(AUTH_KEY);
+        }
+
+        // ========== 页面加载 ==========
         document.addEventListener('DOMContentLoaded', async () => {
-            // 尝试恢复上次会话
-            const savedSessionId = localStorage.getItem(SESSION_KEY);
-            if (savedSessionId) {
-                await restoreSession(savedSessionId);
+            const token = localStorage.getItem(AUTH_KEY);
+            if (token) {
+                // 验证 token 是否有效
+                try {
+                    const res = await apiFetch(`${API_BASE}/api/auth/me`);
+                    const data = await res.json();
+                    if (data.code === 200) {
+                        // token 有效，显示主界面
+                        showMainUI(data.data.user.username);
+                        // 恢复技能根目录
+                        const savedRoot = localStorage.getItem(SKILL_ROOT_KEY);
+                        if (savedRoot) {
+                            document.getElementById('skill-root-input').value = savedRoot;
+                            await loadSkillsFromRootSilent(savedRoot);
+                        }
+                        // 加载用户会话列表
+                        await loadSessionList();
+                        // 恢复上次会话
+                        const savedSessionId = localStorage.getItem(SESSION_KEY);
+                        if (savedSessionId) {
+                            await restoreSession(savedSessionId);
+                        }
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Token 验证失败:', e);
+                }
+                // token 无效，清除
+                localStorage.removeItem(AUTH_KEY);
+                localStorage.removeItem(SESSION_KEY);
+            }
+            // 未登录，显示登录遮罩
+            document.getElementById('auth-overlay').classList.remove('hidden');
+        });
+
+        function showMainUI(username) {
+            document.getElementById('auth-overlay').classList.add('hidden');
+            document.getElementById('user-bar').style.display = 'flex';
+            document.getElementById('display-username').textContent = username;
+            document.getElementById('stats-section').style.display = 'flex';
+            document.getElementById('session-section').style.display = 'block';
+        }
+
+        // ========== 登录 / 注册 ==========
+        async function handleLogin() {
+            await doAuth('/api/auth/login');
+        }
+
+        async function handleRegister() {
+            await doAuth('/api/auth/register');
+        }
+
+        async function doAuth(url) {
+            const username = document.getElementById('auth-username').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            const errDiv = document.getElementById('auth-error');
+
+            if (!username || !password) {
+                errDiv.textContent = '请输入用户名和密码';
+                errDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}${url}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    localStorage.setItem(AUTH_KEY, data.data.token);
+                    showMainUI(data.data.user.username);
+                    // 恢复技能根目录
+                    const savedRoot = localStorage.getItem(SKILL_ROOT_KEY);
+                    if (savedRoot) {
+                        document.getElementById('skill-root-input').value = savedRoot;
+                        await loadSkillsFromRootSilent(savedRoot);
+                    }
+                    await loadSessionList();
+                } else {
+                    errDiv.textContent = data.message || '操作失败';
+                    errDiv.style.display = 'block';
+                }
+            } catch (e) {
+                errDiv.textContent = '网络错误: ' + e.message;
+                errDiv.style.display = 'block';
+            }
+        }
+
+        // 回车触发登录
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !document.getElementById('auth-overlay').classList.contains('hidden')) {
+                handleLogin();
             }
         });
+
+        function handleLogout() {
+            localStorage.removeItem(AUTH_KEY);
+            localStorage.removeItem(SESSION_KEY);
+            currentSessionId = null;
+            enabledSkillIds.clear();
+            allSkills = [];
+            document.getElementById('user-bar').style.display = 'none';
+            document.getElementById('stats-section').style.display = 'none';
+            document.getElementById('session-section').style.display = 'none';
+            document.getElementById('skill-list').innerHTML = '<div class="empty">请先设置技能根目录并点击加载</div>';
+            document.getElementById('chat-panel').style.display = 'none';
+            document.getElementById('auth-overlay').classList.remove('hidden');
+            document.getElementById('auth-username').value = '';
+            document.getElementById('auth-password').value = '';
+            document.getElementById('auth-error').style.display = 'none';
+        }
 
         // 恢复保存的会话
         async function restoreSession(sessionId) {
             try {
                 // 先加载技能列表
-                const listRes = await fetch(`${API_BASE}/api/skills`);
+                const listRes = await apiFetch(`${API_BASE}/api/skills`);
                 const listData = await listRes.json();
                 if (listData.code === 200) {
                     allSkills = listData.data || [];
                     document.getElementById('total-skills').textContent = allSkills.length;
-                    document.getElementById('stats-section').style.display = 'flex';
-                    document.getElementById('session-section').style.display = 'block';
                 }
 
                 // 尝试获取会话信息，验证会话是否有效
-                const res = await fetch(`${API_BASE}/api/sessions/${sessionId}`);
+                const res = await apiFetch(`${API_BASE}/api/sessions/${sessionId}`);
                 const data = await res.json();
 
                 if (data.code === 200) {
-                    // 会话有效，恢复它
                     currentSessionId = sessionId;
-
-                    document.getElementById('current-session').innerHTML =
-                        `<code style="background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${sessionId}</code>
-                         <span style="color: #4CAF50; margin-left: 8px;">✓ 已恢复</span>`;
+                    updateSessionSelect();
                     document.getElementById('copy-btn').style.display = 'inline-block';
-                    document.getElementById('clear-btn').style.display = 'inline-block';
-
-                    // 加载已启用的技能
                     await loadEnabledSkills();
-
-                    // 显示聊天窗口
                     showChatPanel();
-
-                    // 加载历史消息
                     await loadHistory();
                 } else {
-                    // 会话无效，清除保存的ID
                     localStorage.removeItem(SESSION_KEY);
                     console.log('会话已过期，已清除');
                 }
@@ -492,7 +844,7 @@
         async function loadHistory() {
             if (!currentSessionId) return;
             try {
-                const res = await fetch(`${API_BASE}/api/sessions/${currentSessionId}/history`);
+                const res = await apiFetch(`${API_BASE}/api/sessions/${currentSessionId}/history`);
                 const data = await res.json();
                 if (data.code === 200 && data.data) {
                     const container = document.getElementById('chat-messages');
@@ -511,6 +863,78 @@
             }
         }
 
+        // 加载用户会话列表
+        async function loadSessionList() {
+            try {
+                const res = await apiFetch(`${API_BASE}/api/sessions`);
+                const data = await res.json();
+                if (data.code === 200 && data.data) {
+                    const select = document.getElementById('session-select');
+                    select.innerHTML = '<option value="">-- 新建会话 --</option>';
+                    data.data.forEach(session => {
+                        const opt = document.createElement('option');
+                        opt.value = session.sessionId;
+                        const shortId = session.sessionId.substring(0, 8);
+                        opt.textContent = `${shortId}... (${session.enabledSkillIds ? session.enabledSkillIds.length : 0} 技能)`;
+                        select.appendChild(opt);
+                    });
+                    updateSessionSelect();
+                }
+            } catch (e) {
+                console.error('加载会话列表失败:', e);
+            }
+        }
+
+        function updateSessionSelect() {
+            const select = document.getElementById('session-select');
+            if (currentSessionId) {
+                select.value = currentSessionId;
+                document.getElementById('copy-btn').style.display = 'inline-block';
+            } else {
+                select.value = '';
+                document.getElementById('copy-btn').style.display = 'none';
+            }
+        }
+
+        async function switchSession() {
+            const select = document.getElementById('session-select');
+            const newId = select.value;
+            if (!newId) {
+                // 选择了"新建会话"
+                currentSessionId = null;
+                localStorage.removeItem(SESSION_KEY);
+                return;
+            }
+            if (newId === currentSessionId) return;
+
+            localStorage.setItem(SESSION_KEY, newId);
+            await restoreSession(newId);
+        }
+
+        // 从用户指定的根目录加载技能（静默模式，不显示错误alert）
+        async function loadSkillsFromRootSilent(rootPath) {
+            if (!rootPath) return;
+            try {
+                const res = await apiFetch(`${API_BASE}/api/skills/set-root`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ directory: rootPath })
+                });
+                const data = await res.json();
+                if (data.code !== 200) return;
+
+                const listRes = await apiFetch(`${API_BASE}/api/skills`);
+                const listData = await listRes.json();
+                if (listData.code === 200) {
+                    allSkills = listData.data || [];
+                    document.getElementById('total-skills').textContent = allSkills.length;
+                    renderSkillList();
+                }
+            } catch (e) {
+                console.error('静默加载技能失败:', e);
+            }
+        }
+
         // 从用户指定的根目录加载技能
         async function loadSkillsFromRoot() {
             const rootPath = document.getElementById('skill-root-input').value.trim();
@@ -519,11 +943,12 @@
                 return;
             }
 
+            localStorage.setItem(SKILL_ROOT_KEY, rootPath);
             document.getElementById('skill-list').innerHTML = '<div class="loading">加载中...</div>';
 
             try {
                 // 设置技能根目录
-                const res = await fetch(`${API_BASE}/api/skills/set-root`, {
+                const res = await apiFetch(`${API_BASE}/api/skills/set-root`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ directory: rootPath })
@@ -535,7 +960,7 @@
                 }
 
                 // 获取技能列表
-                const listRes = await fetch(`${API_BASE}/api/skills`);
+                const listRes = await apiFetch(`${API_BASE}/api/skills`);
                 const listData = await listRes.json();
                 if (listData.code === 200) {
                     allSkills = listData.data || [];
@@ -554,20 +979,14 @@
         // 创建新会话
         async function createSession() {
             try {
-                const res = await fetch(`${API_BASE}/api/sessions`, { method: 'POST' });
+                const res = await apiFetch(`${API_BASE}/api/sessions`, { method: 'POST' });
                 const data = await res.json();
                 if (data.code === 200) {
                     const sessionId = data.data.sessionId;
                     currentSessionId = sessionId;
-
-                    // 保存到 localStorage
                     localStorage.setItem(SESSION_KEY, sessionId);
-
-                    // 显示当前会话 ID
-                    document.getElementById('current-session').innerHTML =
-                        `<code style="background: #f0f0f0; padding: 2px 8px; border-radius: 4px;">${sessionId}</code>`;
-                    document.getElementById('copy-btn').style.display = 'inline-block';
-
+                    await loadSessionList();
+                    updateSessionSelect();
                     await loadEnabledSkills();
                     showChatPanel();
                 } else {
@@ -589,25 +1008,15 @@
             }
         }
 
-        // 退出当前会话
+        // 退出当前会话（仅清除前端状态，不删服务端会话）
         function clearSession() {
-            if (confirm('确定要退出当前会话吗？会话记录将保留。')) {
-                // 不删除会话，只是清除前端的会话ID
-                currentSessionId = null;
-                localStorage.removeItem(SESSION_KEY);
-
-                // 隐藏聊天面板
-                document.getElementById('chat-panel').style.display = 'none';
-
-                // 重置会话显示
-                document.getElementById('current-session').textContent = '未创建';
-                document.getElementById('copy-btn').style.display = 'none';
-                document.getElementById('clear-btn').style.display = 'none';
-
-                // 清空技能选择
-                enabledSkillIds.clear();
-                renderSkillList();
-            }
+            currentSessionId = null;
+            localStorage.removeItem(SESSION_KEY);
+            document.getElementById('chat-panel').style.display = 'none';
+            document.getElementById('copy-btn').style.display = 'none';
+            updateSessionSelect();
+            enabledSkillIds.clear();
+            renderSkillList();
         }
 
         // 输入框回车触发加载
@@ -659,7 +1068,7 @@
             sendBtn.textContent = '处理中...';
 
             try {
-                const res = await fetch(`${API_BASE}/api/sessions/${currentSessionId}/chat`, {
+                const res = await apiFetch(`${API_BASE}/api/sessions/${currentSessionId}/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: fullMessage })
@@ -678,34 +1087,11 @@
             }
         }
 
-        // 添加消息到聊天窗口
-        function appendMessage(role, content, scrollToBottom = true) {
-            const container = document.getElementById('chat-messages');
-
-            // 移除空提示
-            if (container.querySelector('.empty')) {
-                container.innerHTML = '';
-            }
-
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'chat-message ' + role;
-            msgDiv.innerHTML = `
-                <div class="role-label">${role === 'user' ? '你' : '助手'}</div>
-                <div class="bubble">${escapeHtml(content)}</div>
-            `;
-            container.appendChild(msgDiv);
-
-            // 滚动到底部（可选，用于恢复历史时不滚动）
-            if (scrollToBottom) {
-                container.scrollTop = container.scrollHeight;
-            }
-        }
-
         // 加载已启用的技能
         async function loadEnabledSkills() {
             if (!currentSessionId) return;
             try {
-                const res = await fetch(`${API_BASE}/api/sessions/${currentSessionId}/skills`);
+                const res = await apiFetch(`${API_BASE}/api/sessions/${currentSessionId}/skills`);
                 const data = await res.json();
                 if (data.code === 200) {
                     enabledSkillIds = new Set(data.data || []);
@@ -755,7 +1141,7 @@
 
             try {
                 const action = enabled ? 'enable' : 'disable';
-                const res = await fetch(`${API_BASE}/api/sessions/${currentSessionId}/skills/${skillId}/${action}`, {
+                const res = await apiFetch(`${API_BASE}/api/sessions/${currentSessionId}/skills/${skillId}/${action}`, {
                     method: 'POST'
                 });
                 const data = await res.json();
@@ -863,7 +1249,7 @@
                     formData.append('file', file);
                     formData.append('sessionId', currentSessionId);
 
-                    const res = await fetch(`${API_BASE}/api/files/upload`, {
+                    const res = await apiFetch(`${API_BASE}/api/files/upload`, {
                         method: 'POST',
                         body: formData
                     });
@@ -889,7 +1275,7 @@
             return uploaded;
         }
 
-        // 修改 appendMessage 支持文件附件
+        // 修改 appendMessage 支持 markdown 渲染和文件附件
         function appendMessage(role, content, scrollToBottom = true, files = []) {
             const container = document.getElementById('chat-messages');
 
@@ -901,8 +1287,12 @@
             const msgDiv = document.createElement('div');
             msgDiv.className = 'chat-message ' + role;
 
+            const renderedContent = role === 'assistant'
+                ? marked.parse(content)
+                : escapeHtml(content);
+
             let html = `<div class="role-label">${role === 'user' ? '你' : '助手'}</div>
-                        <div class="bubble">${escapeHtml(content)}</div>`;
+                        <div class="bubble">${renderedContent}</div>`;
 
             // 渲染文件附件
             if (files && files.length > 0) {

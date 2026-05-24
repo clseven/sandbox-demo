@@ -33,7 +33,7 @@ public class ReactAgent {
     /**
      * 最大迭代次数，防止无限循环
      */
-    private static final int MAX_ITERATIONS = 10;
+    private static final int MAX_ITERATIONS = 20;
 
     /**
      * ReAct 系统提示模板
@@ -88,27 +88,36 @@ public class ReactAgent {
     private final Map<String, Tool> tools;
     private final List<ToolDefinition> toolDefinitions;
     private final String systemPrompt;
+    private final String plan;
 
     /**
      * 创建 ReactAgent（无技能）
      */
     public ReactAgent(LlmService llmService, List<Tool> toolList) {
-        this(llmService, toolList, null);
+        this(llmService, toolList, null, null);
     }
 
     /**
      * 创建 ReactAgent（带技能内容）
-     *
-     * @param llmService      LLM 服务
-     * @param toolList        工具列表
-     * @param skillPrompt     技能内容（从 buildPrompt 生成）
      */
     public ReactAgent(LlmService llmService, List<Tool> toolList, String skillPrompt) {
+        this(llmService, toolList, skillPrompt, null);
+    }
+
+    /**
+     * 创建 ReactAgent（带技能 + 执行计划）
+     *
+     * @param llmService   LLM 服务
+     * @param toolList     工具列表
+     * @param skillPrompt  技能内容
+     * @param plan         执行计划（PlanAgent 输出）
+     */
+    public ReactAgent(LlmService llmService, List<Tool> toolList, String skillPrompt, String plan) {
         this.llmService = llmService;
         this.tools = new ConcurrentHashMap<>();
         this.toolDefinitions = new ArrayList<>();
+        this.plan = plan;
 
-        // 注册工具
         for (Tool tool : toolList) {
             tools.put(tool.getDefinition().getName(), tool);
             toolDefinitions.add(tool.getDefinition());
@@ -117,7 +126,6 @@ public class ReactAgent {
 
         log.info("工具注册完成，共 {} 个工具: {}", toolList.size(), tools.keySet());
 
-        // 构建系统提示（包含技能内容）
         this.systemPrompt = buildSystemPrompt(skillPrompt);
         log.info("系统提示长度: {} 字符", systemPrompt.length());
     }
@@ -232,11 +240,26 @@ public class ReactAgent {
 
         String basePrompt = String.format(REACT_SYSTEM_PROMPT, toolsDesc);
 
-        // 如果有技能内容，拼在前面
-        if (skillPrompt != null && !skillPrompt.isEmpty()) {
-            return skillPrompt + "\n\n" + basePrompt;
+        StringBuilder fullPrompt = new StringBuilder();
+
+        // 1. 执行计划（参考指南，非死命令）
+        if (plan != null && !plan.isEmpty()) {
+            fullPrompt.append("## 执行计划（参考）\n\n");
+            fullPrompt.append("以下是一份规划建议，用于指引方向，但你不必死板照做：\n");
+            fullPrompt.append("- 优先参考计划的步骤和目的来推进任务\n");
+            fullPrompt.append("- 如果某步失败了，先用其他工具排查原因，再决定重试、换方案还是跳过\n");
+            fullPrompt.append("- 遇到计划外的情况，大胆调用计划里没写的工具来诊断和解决\n");
+            fullPrompt.append("- 记住计划的最终目标，但到达目标的路径你可以灵活调整\n\n");
+            fullPrompt.append(plan).append("\n\n");
         }
-        return basePrompt;
+
+        // 2. 技能内容
+        if (skillPrompt != null && !skillPrompt.isEmpty()) {
+            fullPrompt.append(skillPrompt).append("\n\n");
+        }
+
+        fullPrompt.append(basePrompt);
+        return fullPrompt.toString();
     }
 
     /**

@@ -26,4 +26,6 @@ public interface ConversationSessionRepository extends JpaRepository<Conversatio
      */
     @Query("SELECT s FROM ConversationSessionEntity s WHERE s.sandboxId IS NOT NULL")
     List<ConversationSessionEntity> findAllWithSandbox();
+
+    List<ConversationSessionEntity> findByUserIdOrderByUpdatedAtDesc(Long userId);
 }

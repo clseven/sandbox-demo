@@ -87,6 +87,11 @@ public class EntityConverter {
             updatedAtField.setAccessible(true);
             updatedAtField.set(session, entity.getUpdatedAt());
 
+            // 复制 userId
+            var userIdField = ConversationSession.class.getDeclaredField("userId");
+            userIdField.setAccessible(true);
+            userIdField.set(session, entity.getUserId());
+
             // 复制消息
             var messagesField = ConversationSession.class.getDeclaredField("messages");
             messagesField.setAccessible(true);

@@ -74,16 +74,39 @@ public class AgentConfigProperties {
     }
 
     public static class Llm {
-        private String apiUrl = "";
-        private String apiKey = "";
-        private String model = "glm-4.7";
+        private Planner planner = new Planner();
+        private Executor executor = new Executor();
 
-        public String getApiUrl() { return apiUrl; }
-        public void setApiUrl(String apiUrl) { this.apiUrl = apiUrl; }
-        public String getApiKey() { return apiKey; }
-        public void setApiKey(String apiKey) { this.apiKey = apiKey; }
-        public String getModel() { return model; }
-        public void setModel(String model) { this.model = model; }
+        public Planner getPlanner() { return planner; }
+        public void setPlanner(Planner planner) { this.planner = planner; }
+        public Executor getExecutor() { return executor; }
+        public void setExecutor(Executor executor) { this.executor = executor; }
+
+        public static class Planner {
+            private String apiUrl = "https://open.bigmodel.cn/api/paas/v4";
+            private String apiKey = "";
+            private String model = "glm-4.7";
+
+            public String getApiUrl() { return apiUrl; }
+            public void setApiUrl(String apiUrl) { this.apiUrl = apiUrl; }
+            public String getApiKey() { return apiKey; }
+            public void setApiKey(String apiKey) { this.apiKey = apiKey; }
+            public String getModel() { return model; }
+            public void setModel(String model) { this.model = model; }
+        }
+
+        public static class Executor {
+            private String apiUrl = "https://api.deepseek.com";
+            private String apiKey = "";
+            private String model = "deepseek-v4-flash";
+
+            public String getApiUrl() { return apiUrl; }
+            public void setApiUrl(String apiUrl) { this.apiUrl = apiUrl; }
+            public String getApiKey() { return apiKey; }
+            public void setApiKey(String apiKey) { this.apiKey = apiKey; }
+            public String getModel() { return model; }
+            public void setModel(String model) { this.model = model; }
+        }
     }
 
     public static class Storage {

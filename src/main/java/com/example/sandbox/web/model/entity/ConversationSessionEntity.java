@@ -25,6 +25,9 @@ public class ConversationSessionEntity {
     @Column(name = "aio_endpoint", length = 64)
     private String aioEndpoint;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -71,6 +74,14 @@ public class ConversationSessionEntity {
     public void setAioEndpoint(String aioEndpoint) {
         this.aioEndpoint = aioEndpoint;
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     public LocalDateTime getCreatedAt() {
