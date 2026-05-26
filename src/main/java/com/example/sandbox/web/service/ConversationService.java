@@ -46,12 +46,21 @@ public interface ConversationService {
     void clearHistory(String sessionId);
 
     /**
-     * 构建发送给 LLM 的 prompt
+     * 构建系统提示（仅技能元数据，不含消息历史）
      *
      * @param sessionId 会话 ID
-     * @return prompt 字符串
+     * @return 系统提示字符串
      */
-    String buildPrompt(String sessionId);
+    String buildSystemPrompt(String sessionId);
+
+    /**
+     * 获取最近 N 条消息历史（供 ReAct 循环构建固定前缀）
+     *
+     * @param sessionId 会话 ID
+     * @param limit     最大条数
+     * @return 消息列表
+     */
+    List<ChatMessage> getRecentHistory(String sessionId, int limit);
 
     /**
      * 启用技能

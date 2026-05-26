@@ -66,11 +66,14 @@ public class PlanAgent {
     private final LlmService llmService;
     private final String toolsDescription;
     private final String skillsDescription;
+    private final String sessionContext;
 
-    public PlanAgent(LlmService llmService, List<ToolDefinition> toolDefinitions, List<Skill> skills) {
+    public PlanAgent(LlmService llmService, List<ToolDefinition> toolDefinitions, List<Skill> skills,
+                     String sessionContext) {
         this.llmService = llmService;
         this.toolsDescription = buildToolsDescription(toolDefinitions);
         this.skillsDescription = buildSkillsDescription(skills);
+        this.sessionContext = sessionContext;
         log.info("PlanAgent 初始化完成，工具: {} 个，技能: {} 个", toolDefinitions.size(), skills.size());
     }
 
@@ -85,7 +88,15 @@ public class PlanAgent {
 
         String systemPrompt = String.format(PLANNER_SYSTEM_PROMPT, toolsDescription, skillsDescription);
 
-        String plan = llmService.chatWithSystem(systemPrompt,
+        StringBuilder fullPrompt = new StringBuilder();
+        if (sessionContext != null && !sessionContext.isEmpty()) {
+            fullPrompt.append("## 当前会话上下文\n\n");
+            fullPrompt.append(sessionContext).append("\n\n");
+        }
+        fullPrompt.append(systemPrompt);
+        String finalSystemPrompt = fullPrompt.toString();
+
+        String plan = llmService.chatWithSystem(finalSystemPrompt,
                 List.of(com.example.sandbox.web.model.entity.ChatMessage.userMessage(userMessage)));
 
         log.info("PlanAgent 规划完成，Plan 长度: {} 字符", plan != null ? plan.length() : 0);

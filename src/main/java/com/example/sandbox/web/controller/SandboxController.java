@@ -5,6 +5,7 @@ import com.example.sandbox.web.model.entity.ExecutionResult;
 import com.example.sandbox.web.model.request.ExecuteRequest;
 import com.example.sandbox.web.model.request.FileWriteRequest;
 import com.example.sandbox.web.model.response.ApiResponse;
+import com.example.sandbox.web.service.AgentService;
 import com.example.sandbox.web.service.SandboxService;
 import com.example.sandbox.web.service.impl.SandboxServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,9 @@ public class SandboxController {
     @Autowired
     private SandboxServiceImpl sandboxServiceImpl;
 
+    @Autowired
+    private AgentService agentService;
+
     /**
      * 执行命令
      */
@@ -35,6 +39,7 @@ public class SandboxController {
     public ApiResponse<ExecutionResult> executeCommand(
             @PathVariable String id,
             @RequestBody ExecuteRequest request) {
+        agentService.getSession(id);
         ExecutionResult result = sandboxService.executeCommand(id, request.getCommand());
         return ApiResponse.success(result);
     }
@@ -46,27 +51,24 @@ public class SandboxController {
     public ApiResponse<ExecutionResult> readFile(
             @PathVariable String id,
             @RequestBody FileWriteRequest request) {
+        agentService.getSession(id);
         ExecutionResult result = sandboxService.readFile(id, request.getPath());
         return ApiResponse.success(result);
     }
 
-    /**
-     * 写入文件
-     */
     @PostMapping("/{id}/files/write")
     public ApiResponse<ExecutionResult> writeFile(
             @PathVariable String id,
             @RequestBody FileWriteRequest request) {
+        agentService.getSession(id);
         ExecutionResult result = sandboxService.writeFile(id, request.getPath(), request.getContent());
         return ApiResponse.success(result);
     }
 
-    /**
-     * 下载 AIO 沙箱中的文件
-     */
     @GetMapping("/{id}/aio/download")
     public void downloadAioFile(@PathVariable String id, @RequestParam String path, HttpServletResponse response) {
         try {
+            agentService.getSession(id);
             AioSandboxClient client = sandboxServiceImpl.getAioClient(id);
             byte[] fileContent = client.downloadFile(path);
 

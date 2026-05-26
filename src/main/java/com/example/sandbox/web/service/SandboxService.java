@@ -60,4 +60,11 @@ public interface SandboxService {
      * @return true 表示 AIO 沙箱，false 表示通用沙箱
      */
     boolean isAioSandbox(String sessionId);
+
+    /**
+     * 移除会话关联的沙箱（关闭并清理资源）
+     *
+     * @param sessionId 会话 ID
+     */
+    void removeSandbox(String sessionId);
 }

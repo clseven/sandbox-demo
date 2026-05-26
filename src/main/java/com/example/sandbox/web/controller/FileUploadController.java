@@ -1,6 +1,7 @@
 package com.example.sandbox.web.controller;
 
 import com.example.sandbox.web.model.response.ApiResponse;
+import com.example.sandbox.web.service.AgentService;
 import com.example.sandbox.web.service.FileStorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +30,9 @@ public class FileUploadController {
     @Autowired
     private FileStorageService fileStorageService;
 
-    /**
-     * 上传文件
-     */
+    @Autowired
+    private AgentService agentService;
+
     @PostMapping("/upload")
     public ApiResponse<String> upload(
             @RequestParam("file") MultipartFile file,
@@ -39,24 +40,23 @@ public class FileUploadController {
         if (file.isEmpty()) {
             return ApiResponse.error(400, "文件不能为空");
         }
+        agentService.getSession(sessionId);
 
         try {
             String path = fileStorageService.store(sessionId, file.getOriginalFilename(), file.getInputStream());
             return ApiResponse.success(path);
         } catch (Exception e) {
             log.error("文件上传失败: {}", e.getMessage(), e);
-            return ApiResponse.error(500, "文件上传失败: " + e.getMessage());
+            return ApiResponse.error(500, "文件上传失败");
         }
     }
 
-    /**
-     * 下载文件
-     */
     @GetMapping("/download/{sessionId}/{filename}")
     public ResponseEntity<InputStreamResource> download(
             @PathVariable String sessionId,
             @PathVariable String filename) {
         try {
+            agentService.getSession(sessionId);
             InputStream inputStream = fileStorageService.getFile(sessionId, filename);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
@@ -68,19 +68,17 @@ public class FileUploadController {
         }
     }
 
-    /**
-     * 删除文件
-     */
     @DeleteMapping("/{sessionId}/{filename}")
     public ApiResponse<Void> delete(
             @PathVariable String sessionId,
             @PathVariable String filename) {
         try {
+            agentService.getSession(sessionId);
             fileStorageService.delete(sessionId, filename);
             return ApiResponse.success();
         } catch (Exception e) {
             log.error("文件删除失败: {}", e.getMessage());
-            return ApiResponse.error(500, "文件删除失败: " + e.getMessage());
+            return ApiResponse.error(500, "文件删除失败");
         }
     }
 

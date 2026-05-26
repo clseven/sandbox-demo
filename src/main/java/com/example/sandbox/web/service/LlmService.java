@@ -45,56 +45,39 @@ public interface LlmService {
      * LLM 响应
      */
     class LlmResponse {
-        /**
-         * 文本回复（如果 LLM 不调用工具）
-         */
         private final String content;
-
-        /**
-         * 工具调用（如果 LLM 选择调用工具）
-         */
         private final ToolCall toolCall;
-
-        /**
-         * 是否完成（没有更多工具调用）
-         */
         private final boolean finished;
+        private final TokenUsage tokenUsage;
 
-        public LlmResponse(String content, ToolCall toolCall, boolean finished) {
+        public LlmResponse(String content, ToolCall toolCall, boolean finished, TokenUsage tokenUsage) {
             this.content = content;
             this.toolCall = toolCall;
             this.finished = finished;
+            this.tokenUsage = tokenUsage;
         }
 
-        /**
-         * 纯文本回复
-         */
         public static LlmResponse text(String content) {
-            return new LlmResponse(content, null, true);
+            return new LlmResponse(content, null, true, null);
         }
 
-        /**
-         * 工具调用回复（保留思考内容）
-         */
+        public static LlmResponse text(String content, TokenUsage tokenUsage) {
+            return new LlmResponse(content, null, true, tokenUsage);
+        }
+
         public static LlmResponse toolCall(ToolCall toolCall, String thinking) {
-            return new LlmResponse(thinking, toolCall, false);
+            return new LlmResponse(thinking, toolCall, false, null);
         }
 
-        public String getContent() {
-            return content;
+        public static LlmResponse toolCall(ToolCall toolCall, String thinking, TokenUsage tokenUsage) {
+            return new LlmResponse(thinking, toolCall, false, tokenUsage);
         }
 
-        public ToolCall getToolCall() {
-            return toolCall;
-        }
-
-        public boolean isFinished() {
-            return finished;
-        }
-
-        public boolean hasToolCall() {
-            return toolCall != null;
-        }
+        public String getContent() { return content; }
+        public ToolCall getToolCall() { return toolCall; }
+        public boolean isFinished() { return finished; }
+        public boolean hasToolCall() { return toolCall != null; }
+        public TokenUsage getTokenUsage() { return tokenUsage; }
     }
 
     /**
@@ -109,12 +92,39 @@ public interface LlmService {
             this.arguments = arguments;
         }
 
-        public String getName() {
-            return name;
+        public String getName() { return name; }
+        public Map<String, Object> getArguments() { return arguments; }
+    }
+
+    /**
+     * Token 消耗统计
+     */
+    class TokenUsage {
+        private final int promptTokens;
+        private final int completionTokens;
+        private final int totalTokens;
+        private final int cacheHitTokens;
+
+        public TokenUsage(int promptTokens, int completionTokens, int totalTokens) {
+            this(promptTokens, completionTokens, totalTokens, 0);
         }
 
-        public Map<String, Object> getArguments() {
-            return arguments;
+        public TokenUsage(int promptTokens, int completionTokens, int totalTokens, int cacheHitTokens) {
+            this.promptTokens = promptTokens;
+            this.completionTokens = completionTokens;
+            this.totalTokens = totalTokens;
+            this.cacheHitTokens = cacheHitTokens;
+        }
+
+        public int getPromptTokens() { return promptTokens; }
+        public int getCompletionTokens() { return completionTokens; }
+        public int getTotalTokens() { return totalTokens; }
+        public int getCacheHitTokens() { return cacheHitTokens; }
+
+        @Override
+        public String toString() {
+            return "TokenUsage{prompt=" + promptTokens + ", completion=" + completionTokens
+                    + ", total=" + totalTokens + ", cacheHit=" + cacheHitTokens + '}';
         }
     }
 }

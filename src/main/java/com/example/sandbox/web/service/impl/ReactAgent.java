@@ -15,13 +15,14 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * ReAct Agent 实现
  *
- * <p>ReAct = Reasoning + Acting，通过循环推理完成任务：</p>
- * <ol>
- *   <li>Thought: 分析当前情况，决定下一步行动</li>
- *   <li>Action: 选择工具并执行</li>
- *   <li>Observation: 观察工具执行结果</li>
- *   <li>重复直到得出最终答案</li>
- * </ol>
+ * <p>ReAct = Reasoning + Acting，通过循环推理完成任务。</p>
+ *
+ * <p>Prompt Caching 设计：</p>
+ * <ul>
+ *   <li>system prompt 在会话内不变 → 服务端缓存常驻</li>
+ *   <li>历史消息（最近 20 条）作为 messages 数组的固定前缀 → 每轮缓存命中</li>
+ *   <li>新增的 Thought/Action/Observation 只追加到末尾 → 仅新内容计费</li>
+ * </ul>
  *
  * @author example
  * @date 2026/05/15
@@ -30,14 +31,22 @@ public class ReactAgent {
 
     private static final Logger log = LoggerFactory.getLogger(ReactAgent.class);
 
-    /**
-     * 最大迭代次数，防止无限循环
-     */
     private static final int MAX_ITERATIONS = 20;
+    private static final int SUMMARIZE_THRESHOLD = 24_000;
+    private static final int TOKEN_CHARS_RATIO = 3;
 
-    /**
-     * ReAct 系统提示模板
-     */
+    private static final String SUMMARIZE_PROMPT = """
+            请用中文将以下对话历史压缩为一段简洁摘要（不超过 500 字），保留：
+            - 用户的核心目标和意图
+            - 已完成的关键操作和结果
+            - 重要的发现或结论
+            不要逐条复述，只提取关键信息。
+
+            %s
+
+            对话历史：
+            %s""";
+
     private static final String REACT_SYSTEM_PROMPT = """
             你是一个智能助手。你必须通过调用工具来完成任务。
 
@@ -90,28 +99,17 @@ public class ReactAgent {
     private final String systemPrompt;
     private final String plan;
 
-    /**
-     * 创建 ReactAgent（无技能）
-     */
+    /** 对话摘要（超出 token 预算时压缩旧消息生成），追加到 system prompt 前 */
+    private String conversationSummary;
+
     public ReactAgent(LlmService llmService, List<Tool> toolList) {
         this(llmService, toolList, null, null);
     }
 
-    /**
-     * 创建 ReactAgent（带技能内容）
-     */
     public ReactAgent(LlmService llmService, List<Tool> toolList, String skillPrompt) {
         this(llmService, toolList, skillPrompt, null);
     }
 
-    /**
-     * 创建 ReactAgent（带技能 + 执行计划）
-     *
-     * @param llmService   LLM 服务
-     * @param toolList     工具列表
-     * @param skillPrompt  技能内容
-     * @param plan         执行计划（PlanAgent 输出）
-     */
     public ReactAgent(LlmService llmService, List<Tool> toolList, String skillPrompt, String plan) {
         this.llmService = llmService;
         this.tools = new ConcurrentHashMap<>();
@@ -121,106 +119,161 @@ public class ReactAgent {
         for (Tool tool : toolList) {
             tools.put(tool.getDefinition().getName(), tool);
             toolDefinitions.add(tool.getDefinition());
-            log.info("已注册工具: {} - {}", tool.getDefinition().getName(), tool.getDefinition().getDescription());
         }
 
-        log.info("工具注册完成，共 {} 个工具: {}", toolList.size(), tools.keySet());
-
         this.systemPrompt = buildSystemPrompt(skillPrompt);
-        log.info("系统提示长度: {} 字符", systemPrompt.length());
     }
 
     /**
      * 执行 ReAct 循环
      *
      * @param sessionId   会话 ID
-     * @param userMessage 用户消息
+     * @param userMessage 用户消息（作为本轮第一条 user 消息）
+     * @param history     历史消息（不含当前用户消息），作为固定前缀以利用 prompt caching
      * @return 最终响应
      */
-    public String run(String sessionId, String userMessage) {
+    public String run(String sessionId, String userMessage, List<ChatMessage> history) {
         List<ChatMessage> messages = new ArrayList<>();
+        messages.addAll(trimHistory(history));
         messages.add(ChatMessage.userMessage(userMessage));
+
+        log.info("ReAct 消息构建完成，历史 {} 条（截取后 {} 条），当前消息 1 条",
+                history.size(), messages.size() - 1);
 
         int iteration = 0;
         while (iteration < MAX_ITERATIONS) {
             iteration++;
-            log.info("ReAct 第 {} 次迭代，会话 {}", iteration, sessionId);
 
-            // 调用 LLM
-            LlmService.LlmResponse response = llmService.chatWithTools(
-                    systemPrompt,
-                    messages,
-                    toolDefinitions
-            );
+            // 每次 LLM 调用前检查 token 预算，超出则压缩旧消息为摘要
+            compressIfNeeded(messages);
 
-            // 记录发送给 LLM 的消息
-            log.info("=== 第 {} 次迭代，发送消息 {} 条 ===", iteration, messages.size());
-            for (int i = 0; i < messages.size(); i++) {
-                ChatMessage msg = messages.get(i);
-                String preview = msg.getContent().length() > 300
-                        ? msg.getContent().substring(0, 300) + "..."
-                        : msg.getContent();
-                log.debug("消息[{}] {}: {}", i, msg.getRole(), preview);
-            }
+            String prompt = effectiveSystemPrompt();
+            LlmService.LlmResponse response = llmService.chatWithTools(prompt, messages, toolDefinitions);
 
-            // 如果没有工具调用，返回最终答案
             if (response.isFinished()) {
                 log.info("ReAct 完成，共 {} 次迭代", iteration);
                 return response.getContent();
             }
 
-            // 执行工具调用
             if (response.hasToolCall()) {
                 LlmService.ToolCall toolCall = response.getToolCall();
                 String toolName = toolCall.getName();
                 Map<String, Object> arguments = toolCall.getArguments();
 
-                // 记录 LLM 的思考过程（如果有）
                 String llmContent = response.getContent();
                 if (llmContent != null && !llmContent.isEmpty()) {
-                    log.info("LLM 思考: {}", llmContent.length() > 500 ? llmContent.substring(0, 500) + "..." : llmContent);
+                    log.debug("LLM 思考: {}", llmContent.length() > 500 ? llmContent.substring(0, 500) + "..." : llmContent);
                 }
 
                 log.info("执行工具: {} 参数: {}", toolName, arguments);
-
-                // 执行工具
                 String observation = executeTool(sessionId, toolName, arguments);
+                log.debug("工具结果: {}", observation.length() > 200 ? observation.substring(0, 200) + "..." : observation);
 
-                log.info("工具结果: {}", observation.length() > 200 ? observation.substring(0, 200) + "..." : observation);
-
-                // 将工具调用结果添加到消息历史
-                // 格式化为 LLM 能理解的格式
-                String assistantMsg = String.format(
+                messages.add(ChatMessage.assistantMessage(String.format(
                         "Thought: 执行工具 %s\nAction: %s\nAction Input: %s",
-                        toolName, toolName, arguments
-                );
-                messages.add(ChatMessage.assistantMessage(assistantMsg));
-
-                String userMsg = "Observation: " + observation;
-                messages.add(ChatMessage.userMessage(userMsg));
+                        toolName, toolName, arguments)));
+                messages.add(ChatMessage.userMessage("Observation: " + observation));
             } else {
-                // 没有工具调用，记录 LLM 最终回复
                 String finalContent = response.getContent();
                 if (finalContent != null && !finalContent.isEmpty()) {
-                    log.info("LLM 最终回复: {}", finalContent.length() > 500 ? finalContent.substring(0, 500) + "..." : finalContent);
+                    log.debug("LLM 最终回复长度: {}", finalContent.length());
                 }
             }
         }
 
-        // 超过最大迭代次数
         log.warn("ReAct 达到最大迭代次数 ({})，会话 {}", MAX_ITERATIONS, sessionId);
         return "抱歉，我尝试了多次但仍未能完成任务。请尝试简化您的要求或提供更多信息。";
     }
 
+    private String effectiveSystemPrompt() {
+        if (conversationSummary == null || conversationSummary.isEmpty()) {
+            return systemPrompt;
+        }
+        return "## 早期对话摘要\n" + conversationSummary + "\n\n" + systemPrompt;
+    }
+
     /**
-     * 执行工具
+     * 如果消息总 token 超过摘要阈值，把最旧的消息压缩为摘要。
+     * 保留最近 ~40% 的消息作为原始上下文，被压缩的消息从数组中移除。
      */
+    private void compressIfNeeded(List<ChatMessage> messages) {
+        int totalTokens = estimateTokens(messages);
+        if (totalTokens <= SUMMARIZE_THRESHOLD) {
+            return;
+        }
+
+        // 找到 60% token 位置，之前的消息将被压缩
+        int threshold = 0;
+        int splitAt = 0;
+        for (int i = 0; i < messages.size(); i++) {
+            threshold += messages.get(i).getContent().length() / TOKEN_CHARS_RATIO;
+            if (threshold > totalTokens * 0.6) {
+                splitAt = i;
+                break;
+            }
+        }
+
+        if (splitAt <= 2) {
+            return; // 太少消息不值得压缩
+        }
+
+        List<ChatMessage> oldMessages = new ArrayList<>(messages.subList(0, splitAt));
+        messages.subList(0, splitAt).clear();
+
+        String newSummary = summarizeMessages(oldMessages);
+        conversationSummary = newSummary;
+
+        log.info("压缩 {} 条旧消息为摘要 ({} 字符)，剩余 {} 条",
+                oldMessages.size(), newSummary.length(), messages.size());
+    }
+
+    private String summarizeMessages(List<ChatMessage> oldMessages) {
+        StringBuilder history = new StringBuilder();
+        for (ChatMessage msg : oldMessages) {
+            String shortContent = msg.getContent().length() > 500
+                    ? msg.getContent().substring(0, 500) + "..."
+                    : msg.getContent();
+            history.append(msg.getRole()).append(": ").append(shortContent).append("\n\n");
+        }
+
+        String existingNote = conversationSummary != null
+                ? "已有摘要（请合并更新）：\n" + conversationSummary
+                : "（首次摘要）";
+
+        String prompt = String.format(SUMMARIZE_PROMPT, existingNote, history);
+
+        try {
+            String summary = llmService.chat(List.of(ChatMessage.userMessage(prompt)));
+            return summary != null ? summary : history.toString();
+        } catch (Exception e) {
+            log.warn("摘要生成失败，保留原始文本", e);
+            return history.toString();
+        }
+    }
+
+    private int estimateTokens(List<ChatMessage> messages) {
+        int total = 0;
+        for (ChatMessage msg : messages) {
+            total += msg.getContent().length() / TOKEN_CHARS_RATIO;
+        }
+        return total;
+    }
+
+    /**
+     * 限制历史消息条数（token 预算由循环内的 compressIfNeeded 动态管理）
+     */
+    private List<ChatMessage> trimHistory(List<ChatMessage> history) {
+        if (history.size() <= 20) {
+            return new ArrayList<>(history);
+        }
+        return new ArrayList<>(history.subList(history.size() - 20, history.size()));
+    }
+
     private String executeTool(String sessionId, String toolName, Map<String, Object> arguments) {
         Tool tool = tools.get(toolName);
         if (tool == null) {
             return "错误：未知工具 '" + toolName + "'";
         }
-
         try {
             return tool.execute(sessionId, arguments);
         } catch (Exception e) {
@@ -229,9 +282,6 @@ public class ReactAgent {
         }
     }
 
-    /**
-     * 构建系统提示
-     */
     private String buildSystemPrompt(String skillPrompt) {
         StringBuilder toolsDesc = new StringBuilder();
         for (ToolDefinition tool : toolDefinitions) {
@@ -242,7 +292,6 @@ public class ReactAgent {
 
         StringBuilder fullPrompt = new StringBuilder();
 
-        // 1. 执行计划（参考指南，非死命令）
         if (plan != null && !plan.isEmpty()) {
             fullPrompt.append("## 执行计划（参考）\n\n");
             fullPrompt.append("以下是一份规划建议，用于指引方向，但你不必死板照做：\n");
@@ -253,7 +302,6 @@ public class ReactAgent {
             fullPrompt.append(plan).append("\n\n");
         }
 
-        // 2. 技能内容
         if (skillPrompt != null && !skillPrompt.isEmpty()) {
             fullPrompt.append(skillPrompt).append("\n\n");
         }
@@ -262,9 +310,6 @@ public class ReactAgent {
         return fullPrompt.toString();
     }
 
-    /**
-     * 获取可用工具列表
-     */
     public List<ToolDefinition> getAvailableTools() {
         return new ArrayList<>(toolDefinitions);
     }

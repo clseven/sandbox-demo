@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * 对话记忆服务实现
@@ -37,6 +38,8 @@ import java.util.UUID;
 public class ConversationServiceImpl implements ConversationService {
 
     private static final Logger log = LoggerFactory.getLogger(ConversationServiceImpl.class);
+
+    private static final Pattern SAFE_SKILL_ID = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9_.\\-]{0,63}$");
 
     private final ConversationSessionRepository sessionRepository;
     private final ChatMessageRepository messageRepository;
@@ -97,7 +100,7 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     @Transactional(readOnly = true)
-    public String buildPrompt(String sessionId) {
+    public String buildSystemPrompt(String sessionId) {
         if (!sessionRepository.existsById(sessionId)) {
             throw new SessionNotFoundException(sessionId);
         }
@@ -107,11 +110,8 @@ public class ConversationServiceImpl implements ConversationService {
 
         StringBuilder prompt = new StringBuilder();
 
-        // ========== 渐进式披露：第一层 - 技能元数据列表 ==========
-        // 启动时只注入 id + description，让 agent 知道有哪些能力可用
-        // 当 agent 判断某个技能相关时，调用 skill_activate 加载详细指令
         Set<String> enabledSkillIds = session.getEnabledSkillIds();
-        log.info("构建 prompt，会话 {} 启用技能数: {}", sessionId, enabledSkillIds.size());
+        log.info("构建系统提示，会话 {} 启用技能数: {}", sessionId, enabledSkillIds.size());
 
         if (!enabledSkillIds.isEmpty()) {
             prompt.append("## 已启用技能\n\n");
@@ -129,15 +129,21 @@ public class ConversationServiceImpl implements ConversationService {
             prompt.append("\n");
         }
 
-        // ========== 消息历史 ==========
-        List<ChatMessageEntity> messages = messageRepository.findBySessionIdOrderByTimestampAsc(sessionId);
-        log.debug("会话 {} 消息历史: {} 条", sessionId, messages.size());
-
-        for (ChatMessageEntity message : messages) {
-            prompt.append(message.getRole()).append(": ").append(message.getContent()).append("\n");
-        }
-
         return prompt.toString();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChatMessage> getRecentHistory(String sessionId, int limit) {
+        if (!sessionRepository.existsById(sessionId)) {
+            throw new SessionNotFoundException(sessionId);
+        }
+        List<ChatMessageEntity> allMessages = messageRepository.findBySessionIdOrderByTimestampAsc(sessionId);
+        if (allMessages.size() <= limit) {
+            return EntityConverter.toChatMessageList(allMessages);
+        }
+        var recent = allMessages.subList(allMessages.size() - limit, allMessages.size());
+        return EntityConverter.toChatMessageList(recent);
     }
 
     @Override
@@ -169,17 +175,19 @@ public class ConversationServiceImpl implements ConversationService {
     @Override
     @Transactional
     public void disableSkill(String sessionId, String skillId) {
+        if (skillId == null || !SAFE_SKILL_ID.matcher(skillId).matches()) {
+            throw new IllegalArgumentException("Invalid skill ID: " + skillId);
+        }
+
         ConversationSessionEntity session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
 
         session.disableSkill(skillId);
         sessionRepository.save(session);
 
-        // 从沙箱删除技能文件
         if (sandboxService != null && sandboxService.hasSandbox(sessionId)) {
-            String containerBase = "/mounted-skills/" + skillId;
             try {
-                sandboxService.executeCommand(sessionId, "rm -rf " + containerBase);
+                sandboxService.executeCommand(sessionId, "rm -rf /mounted-skills/" + skillId);
                 log.info("已从沙箱移除技能文件: {}", skillId);
             } catch (Exception e) {
                 log.warn("清理沙箱技能文件失败: {}", skillId, e);

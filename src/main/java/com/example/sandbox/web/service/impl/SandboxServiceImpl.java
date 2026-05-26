@@ -11,6 +11,7 @@ import com.example.sandbox.web.service.SandboxClient;
 import com.example.sandbox.web.service.SandboxService;
 import com.example.sandbox.web.service.SkillService;
 import com.example.sandbox.web.repository.ConversationSessionRepository;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,15 +35,10 @@ public class SandboxServiceImpl implements SandboxService {
 
     private static final Logger log = LoggerFactory.getLogger(SandboxServiceImpl.class);
 
-    /**
-     * 沙盒实例存储（sandboxId -> SandboxAgent）
-     */
     private final Map<String, SandboxAgent> sandboxAgents = new ConcurrentHashMap<>();
-
-    /**
-     * 会话到沙盒 ID 的映射
-     */
     private final Map<String, String> sessionSandboxMap = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> sessionTypeMap = new ConcurrentHashMap<>();
+    private final Map<String, Object> creationLocks = new ConcurrentHashMap<>();
 
     private final SkillService skillService;
     private final ConversationSessionRepository sessionRepository;
@@ -63,27 +59,42 @@ public class SandboxServiceImpl implements SandboxService {
         this.config = config;
     }
 
-    /**
-     * 注册沙盒实例到会话
-     */
-    public void registerSandbox(String sessionId, SandboxAgent agent) {
-        sandboxAgents.put(agent.getSandboxId(), agent);
-        sessionSandboxMap.put(sessionId, agent.getSandboxId());
-        log.info("Registered sandbox {} for session {}", agent.getSandboxId(), sessionId);
-
-        // 如果是 AIO 沙箱，注册到 AioSandboxStore
-        if (isAioImage(config.getSandbox().getImage())) {
-            String endpoint = agent.getAioEndpoint();
-            aioSandboxStore.register(sessionId, agent.getSandboxId(), endpoint);
-
-            // 持久化到数据库
-            persistSandboxInfo(sessionId, agent.getSandboxId(), endpoint);
+    @PostConstruct
+    public void cleanupStaleRecords() {
+        if (!isCurrentImageAio()) {
+            log.info("当前为非 AIO 镜像，清理残留沙箱记录...");
+            try {
+                var sessions = sessionRepository.findAllWithSandbox();
+                for (var session : sessions) {
+                    if (session.getAioEndpoint() == null || session.getAioEndpoint().isBlank()) {
+                        session.setSandboxId(null);
+                        sessionRepository.save(session);
+                    }
+                }
+                log.info("非 AIO 沙箱记录清理完成");
+            } catch (Exception e) {
+                log.warn("清理残留沙箱记录失败: {}", e.getMessage());
+            }
         }
     }
 
-    /**
-     * 持久化沙箱信息到数据库
-     */
+    public void registerSandbox(String sessionId, SandboxAgent agent) {
+        sandboxAgents.put(agent.getSandboxId(), agent);
+        sessionSandboxMap.put(sessionId, agent.getSandboxId());
+        boolean isAio = isCurrentImageAio();
+        sessionTypeMap.put(sessionId, isAio);
+        log.info("Registered sandbox {} for session {} (type: {})", agent.getSandboxId(), sessionId,
+                isAio ? "AIO" : "COMMON");
+
+        if (isAio) {
+            String endpoint = agent.getAioEndpoint();
+            aioSandboxStore.register(sessionId, agent.getSandboxId(), endpoint);
+            persistSandboxInfo(sessionId, agent.getSandboxId(), endpoint);
+        } else {
+            persistSandboxInfo(sessionId, agent.getSandboxId(), null);
+        }
+    }
+
     @Transactional
     public void persistSandboxInfo(String sessionId, String sandboxId, String aioEndpoint) {
         try {
@@ -93,7 +104,7 @@ public class SandboxServiceImpl implements SandboxService {
                 entity.setSandboxId(sandboxId);
                 entity.setAioEndpoint(aioEndpoint);
                 sessionRepository.save(entity);
-                log.info("持久化沙箱信息: sessionId={}, sandboxId={}, endpoint={}", sessionId, sandboxId, aioEndpoint);
+                log.info("持久化沙箱信息: sessionId={}, sandboxId={}, aioEndpoint={}", sessionId, sandboxId, aioEndpoint);
             } else {
                 log.warn("会话 {} 不存在，无法持久化沙箱信息", sessionId);
             }
@@ -104,7 +115,6 @@ public class SandboxServiceImpl implements SandboxService {
 
     @Override
     public void createSandbox(String sessionId) {
-        // 先检查现有沙箱是否健康
         if (hasSandbox(sessionId)) {
             String sandboxId = sessionSandboxMap.get(sessionId);
             SandboxAgent existingAgent = sandboxAgents.get(sandboxId);
@@ -112,47 +122,46 @@ public class SandboxServiceImpl implements SandboxService {
                 log.info("沙箱 {} 对会话 {} 状态健康，跳过创建", sandboxId, sessionId);
                 return;
             }
-            // 不健康，清理旧记录
             log.warn("沙箱 {} 对会话 {} 不健康，清理中", sandboxId, sessionId);
             removeSandbox(sessionId);
         }
 
-        try {
-            // 构建沙箱
-            SandboxAgent.Builder builder = SandboxAgent.builder()
-                    .image(config.getSandbox().getImage())
-                    .timeout(Duration.parse(config.getSandbox().getTimeout()))
-                    .readyTimeout(Duration.parse(config.getSandbox().getReadyTimeout()));
+        Object lock = creationLocks.computeIfAbsent(sessionId, k -> new Object());
+        synchronized (lock) {
+            try {
+                if (hasSandbox(sessionId)) {
+                    return;
+                }
 
-            // AIO 镜像需要使用 /opt/gem/run.sh 启动服务
-            if (isAioImage(config.getSandbox().getImage())) {
-                builder.entrypoint("/opt/gem/run.sh");
+                SandboxAgent.Builder builder = SandboxAgent.builder()
+                        .image(config.getSandbox().getImage())
+                        .timeout(Duration.parse(config.getSandbox().getTimeout()))
+                        .readyTimeout(Duration.parse(config.getSandbox().getReadyTimeout()));
+
+                if (isCurrentImageAio()) {
+                    builder.entrypoint("/opt/gem/run.sh");
+                }
+
+                SandboxAgent agent = builder.build();
+                registerSandbox(sessionId, agent);
+                log.info("创建沙箱 {} 对会话 {}", agent.getSandboxId(), sessionId);
+
+                if (isCurrentImageAio()) {
+                    initAioContext(sessionId, agent);
+                }
+
+                fileSyncService.syncUploadFiles(sessionId);
+                syncAllEnabledSkills(sessionId);
+
+            } catch (Exception e) {
+                log.error("沙箱创建失败，会话 {}", sessionId, e);
+                throw new RuntimeException("沙箱创建失败：" + e.getMessage(), e);
+            } finally {
+                creationLocks.remove(sessionId);
             }
-
-            SandboxAgent agent = builder.build();
-            registerSandbox(sessionId, agent);
-            log.info("创建沙箱 {} 对会话 {}", agent.getSandboxId(), sessionId);
-
-            // 如果是 AIO 镜像，获取环境信息
-            if (isAioImage(config.getSandbox().getImage())) {
-                initAioContext(sessionId, agent);
-            }
-
-            // 同步用户上传的文件到沙盒
-            fileSyncService.syncUploadFiles(sessionId);
-
-            // 同步所有已启用的技能
-            syncAllEnabledSkills(sessionId);
-
-        } catch (Exception e) {
-            log.error("沙箱创建失败，会话 {}", sessionId, e);
-            throw new RuntimeException("沙箱创建失败：" + e.getMessage(), e);
         }
     }
 
-    /**
-     * 同步所有已启用的技能到沙箱
-     */
     private void syncAllEnabledSkills(String sessionId) {
         Set<String> enabledSkillIds = getEnabledSkillIds(sessionId);
         for (String skillId : enabledSkillIds) {
@@ -166,17 +175,11 @@ public class SandboxServiceImpl implements SandboxService {
         log.info("会话 {} 已同步 {} 个技能", sessionId, enabledSkillIds.size());
     }
 
-    /**
-     * 同步单个技能到沙箱
-     */
     private void syncSkillToSandbox(String sessionId, Skill skill) {
         fileSyncService.syncSkill(sessionId, skill.getLocalPath(), skill.getId());
         log.info("技能 {} 同步完成", skill.getId());
     }
 
-    /**
-     * 获取会话启用的技能 ID 列表（public 以便 Spring 事务代理）
-     */
     @Transactional(readOnly = true)
     public Set<String> getEnabledSkillIds(String sessionId) {
         try {
@@ -192,8 +195,7 @@ public class SandboxServiceImpl implements SandboxService {
 
     @Override
     public boolean hasSandbox(String sessionId) {
-        // 优先检查 AioSandboxStore（支持重启恢复）
-        if (isAioImage(config.getSandbox().getImage()) && aioSandboxStore.hasSandbox(sessionId)) {
+        if (isAioSandbox(sessionId) && aioSandboxStore.hasSandbox(sessionId)) {
             return true;
         }
 
@@ -202,7 +204,6 @@ public class SandboxServiceImpl implements SandboxService {
             return false;
         }
         SandboxAgent agent = sandboxAgents.get(sandboxId);
-        // 记录存在但 agent 丢失，清理脏数据
         if (agent == null) {
             log.warn("Sandbox agent {} lost, cleaning up session {}", sandboxId, sessionId);
             sessionSandboxMap.remove(sessionId);
@@ -211,9 +212,6 @@ public class SandboxServiceImpl implements SandboxService {
         return true;
     }
 
-    /**
-     * 获取会话关联的沙盒（带健康检查）
-     */
     public SandboxAgent getSandbox(String sessionId) {
         String sandboxId = sessionSandboxMap.get(sessionId);
         if (sandboxId == null) {
@@ -221,12 +219,10 @@ public class SandboxServiceImpl implements SandboxService {
         }
         SandboxAgent agent = sandboxAgents.get(sandboxId);
         if (agent == null) {
-            // 脏数据，清理
             sessionSandboxMap.remove(sessionId);
             throw new SessionNotFoundException("Sandbox agent lost for session: " + sessionId);
         }
         if (!agent.isHealthy()) {
-            // 沙箱不健康，清理并抛异常
             log.warn("Sandbox {} for session {} is unhealthy", sandboxId, sessionId);
             removeSandbox(sessionId);
             throw new SessionNotFoundException("Sandbox unhealthy for session: " + sessionId);
@@ -234,11 +230,11 @@ public class SandboxServiceImpl implements SandboxService {
         return agent;
     }
 
-    /**
-     * 移除会话的沙盒
-     */
+    @Override
     public void removeSandbox(String sessionId) {
         String sandboxId = sessionSandboxMap.remove(sessionId);
+        sessionTypeMap.remove(sessionId);
+
         if (sandboxId != null) {
             SandboxAgent agent = sandboxAgents.remove(sandboxId);
             if (agent != null) {
@@ -249,6 +245,26 @@ public class SandboxServiceImpl implements SandboxService {
                     log.error("Failed to close sandbox for session: {}", sessionId, e);
                 }
             }
+        }
+
+        if (isCurrentImageAio()) {
+            aioSandboxStore.remove(sessionId);
+        }
+        clearSandboxRecord(sessionId);
+    }
+
+    @Transactional
+    public void clearSandboxRecord(String sessionId) {
+        try {
+            var session = sessionRepository.findById(sessionId);
+            if (session.isPresent()) {
+                ConversationSessionEntity entity = session.get();
+                entity.setSandboxId(null);
+                entity.setAioEndpoint(null);
+                sessionRepository.save(entity);
+            }
+        } catch (Exception e) {
+            log.warn("清除沙箱记录失败: sessionId={}", sessionId, e);
         }
     }
 
@@ -304,51 +320,40 @@ public class SandboxServiceImpl implements SandboxService {
 
     @Override
     public boolean isAioSandbox(String sessionId) {
-        return isAioImage(config.getSandbox().getImage());
+        Boolean sessionType = sessionTypeMap.get(sessionId);
+        if (sessionType != null) {
+            return sessionType;
+        }
+        return isCurrentImageAio();
     }
 
     // ==================== AIO Sandbox ====================
 
-    /**
-     * 获取会话的 AIO Sandbox 客户端
-     *
-     * <p>用于调用 AIO 镜像特有的能力，如浏览器截图。</p>
-     *
-     * @param sessionId 会话 ID
-     * @return AIO Sandbox 客户端
-     */
     public AioSandboxClient getAioClient(String sessionId) {
-        // 优先从 AioSandboxStore 获取（支持重启恢复）
         if (aioSandboxStore.hasSandbox(sessionId)) {
             return aioSandboxStore.getClient(sessionId);
         }
 
-        // 回退到从 SandboxAgent 获取
         SandboxAgent agent = getSandbox(sessionId);
         String endpoint = agent.getAioEndpoint();
         log.info("AIO endpoint for session {}: {}", sessionId, endpoint);
         return new AioSandboxClient("http://" + endpoint);
     }
 
-    /**
-     * 判断是否为 AIO 镜像
-     */
-    private boolean isAioImage(String image) {
-        if (image == null) return false;
-        // 匹配原版 AIO 镜像或国内镜像
+    private boolean isCurrentImageAio() {
+        String image = config.getSandbox().getImage();
+        if (image == null) {
+            return false;
+        }
         return image.contains("agent-infra/sandbox") || image.contains("all-in-one-sandbox");
     }
 
-    /**
-     * 沙箱创建后，自动获取 AIO 环境信息
-     */
     private void initAioContext(String sessionId, SandboxAgent agent) {
         try {
             String endpoint = agent.getAioEndpoint();
             log.info("AIO endpoint for session {}: http://{}", sessionId, endpoint);
             AioSandboxClient client = new AioSandboxClient("http://" + endpoint);
 
-            // 等待 AIO 服务就绪
             log.info("等待 AIO 服务就绪，会话: {}", sessionId);
             boolean ready = client.waitForReady();
             if (!ready) {
@@ -357,7 +362,6 @@ public class SandboxServiceImpl implements SandboxService {
             }
 
             SandboxClient.SandboxContext context = client.getContext();
-
             if (context != null) {
                 log.info("AIO 沙箱环境就绪 - 会话: {}, homeDir: {}, workspace: {}",
                         sessionId, context.getHomeDir(), context.getWorkspace());

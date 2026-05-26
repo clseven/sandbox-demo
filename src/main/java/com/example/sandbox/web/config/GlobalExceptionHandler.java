@@ -2,6 +2,7 @@ package com.example.sandbox.web.config;
 
 import com.example.sandbox.web.exception.SessionNotFoundException;
 import com.example.sandbox.web.exception.SkillNotFoundException;
+import com.example.sandbox.web.exception.UnauthorizedException;
 import com.example.sandbox.web.model.response.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,12 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(UnauthorizedException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ApiResponse<Void> handleUnauthorized(UnauthorizedException e) {
+        return ApiResponse.error(401, e.getMessage());
+    }
+
     @ExceptionHandler(SessionNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ApiResponse<Void> handleSessionNotFound(SessionNotFoundException e) {
@@ -39,6 +46,6 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<Void> handleGeneric(Exception e) {
         log.error("Unexpected error", e);
-        return ApiResponse.error(500, "Internal server error: " + e.getMessage());
+        return ApiResponse.error(500, "Internal server error");
     }
 }

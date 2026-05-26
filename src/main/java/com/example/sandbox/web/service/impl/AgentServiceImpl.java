@@ -7,11 +7,13 @@ import com.example.sandbox.web.model.entity.ConversationSession;
 import com.example.sandbox.web.model.entity.Skill;
 import com.example.sandbox.web.model.entity.ToolDefinition;
 import com.example.sandbox.web.service.AgentService;
+import com.example.sandbox.web.service.LlmService;
 import com.example.sandbox.web.service.SkillService;
 import com.example.sandbox.web.service.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -32,10 +34,12 @@ public class AgentServiceImpl implements AgentService {
     private ConversationServiceImpl conversationService;
 
     @Autowired
-    private ZhipuLlmServiceImpl plannerLlm;
+    @Qualifier("plannerLlm")
+    private LlmService plannerLlm;
 
     @Autowired
-    private DeepSeekLlmServiceImpl executorLlm;
+    @Qualifier("executorLlm")
+    private LlmService executorLlm;
 
     @Autowired
     private SkillService skillService;
@@ -73,6 +77,9 @@ public class AgentServiceImpl implements AgentService {
 
     @Override
     public void closeSession(String sessionId) {
+        ConversationSession session = conversationService.getSession(sessionId);
+        validateSessionOwnership(session);
+        sandboxService.removeSandbox(sessionId);
         conversationService.deleteSession(sessionId);
         log.info("Closed session: {}", sessionId);
     }
@@ -80,31 +87,34 @@ public class AgentServiceImpl implements AgentService {
     @Override
     public ConversationSession getSession(String sessionId) {
         ConversationSession session = conversationService.getSession(sessionId);
-        Long currentUserId = UserContext.getCurrentUserId();
-        Long sessionUserId = session.getUserId();
-        if (sessionUserId != null && !sessionUserId.equals(currentUserId)) {
-            throw new UnauthorizedException("Session does not belong to current user");
-        }
+        validateSessionOwnership(session);
         return session;
     }
 
     @Override
     public ChatMessage chat(String sessionId, String userMessage) {
+        ConversationSession session = conversationService.getSession(sessionId);
+        validateSessionOwnership(session);
+
         // 0. 确保沙箱已创建（异步可能还没完成）
         if (!sandboxService.hasSandbox(sessionId)) {
             log.info("Sandbox not ready for session {}, creating now...", sessionId);
             sandboxService.createSandbox(sessionId);
         }
 
-        // 1. 存储用户消息
+        // 1. 加载当前会话的历史消息（存储前获取，不含本轮消息）
+        List<ChatMessage> history = conversationService.getRecentHistory(sessionId, 20);
+        log.info("【历史消息】会话: {} 条数: {}", sessionId, history.size());
+
+        // 2. 存储用户消息
         conversationService.addUserMessage(sessionId, userMessage);
         log.info("【用户输入】会话: {} 内容: {}", sessionId, userMessage);
 
-        // 2. 提取消息中提到的上传文件，追加到系统提示
+        // 3. 提取上传文件上下文
         String extraContext = extractFileContext(userMessage);
 
-        // 3. 构建系统提示（包含启用的技能内容）
-        String systemPrompt = conversationService.buildPrompt(sessionId);
+        // 4. 构建系统提示（仅技能元数据，不含消息历史 — 利用 prompt caching）
+        String systemPrompt = conversationService.buildSystemPrompt(sessionId);
         if (extraContext != null) {
             systemPrompt = extraContext + "\n\n" + systemPrompt;
         }
@@ -127,19 +137,39 @@ public class AgentServiceImpl implements AgentService {
 
         // 5. Phase 1: PlanAgent 规划
         List<Skill> skills = skillService.listSkills();
-        PlanAgent planAgent = new PlanAgent(plannerLlm, toolDefinitions, skills);
+        String sessionContext = buildSessionContext(session, extraContext);
+        PlanAgent planAgent = new PlanAgent(plannerLlm, toolDefinitions, skills, sessionContext);
         String plan = planAgent.plan(userMessage);
         log.info("【规划结果】{}", plan.length() > 300 ? plan.substring(0, 300) + "..." : plan);
 
-        // 6. Phase 2: ReactAgent 执行
+        // 6. Phase 2: ReactAgent 执行（历史消息作为固定前缀，利用 prompt caching）
         ReactAgent reactAgent = new ReactAgent(executorLlm, filteredTools, systemPrompt, plan);
-        String response = reactAgent.run(sessionId, userMessage);
+        String response = reactAgent.run(sessionId, userMessage, history);
 
         // 7. 存储助手响应
         conversationService.addAssistantMessage(sessionId, response);
         log.info("【助手输出】会话: {} 内容: {}", sessionId, response);
 
         return ChatMessage.assistantMessage(response);
+    }
+
+    private void validateSessionOwnership(ConversationSession session) {
+        Long currentUserId = UserContext.getCurrentUserId();
+        Long sessionUserId = session.getUserId();
+        if (sessionUserId != null && !sessionUserId.equals(currentUserId)) {
+            throw new UnauthorizedException("Session does not belong to current user");
+        }
+    }
+
+    private String buildSessionContext(ConversationSession session, String extraContext) {
+        StringBuilder sb = new StringBuilder();
+        if (session.getEnabledSkillIds() != null && !session.getEnabledSkillIds().isEmpty()) {
+            sb.append("已启用技能: ").append(String.join(", ", session.getEnabledSkillIds())).append("\n");
+        }
+        if (extraContext != null) {
+            sb.append(extraContext);
+        }
+        return sb.toString();
     }
 
     /**
