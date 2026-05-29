@@ -7,10 +7,14 @@ import com.example.sandbox.web.service.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * ReAct Agent 实现
@@ -34,6 +38,7 @@ public class ReactAgent {
     private static final int MAX_ITERATIONS = 20;
     private static final int SUMMARIZE_THRESHOLD = 24_000;
     private static final int TOKEN_CHARS_RATIO = 3;
+    private static final Duration TOOL_TIMEOUT = Duration.ofSeconds(120);
 
     private static final String SUMMARIZE_PROMPT = """
             请用中文将以下对话历史压缩为一段简洁摘要（不超过 500 字），保留：
@@ -275,7 +280,17 @@ public class ReactAgent {
             return "错误：未知工具 '" + toolName + "'";
         }
         try {
-            return tool.execute(sessionId, arguments);
+            return CompletableFuture.supplyAsync(() -> tool.execute(sessionId, arguments))
+                    .orTimeout(TOOL_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+                    .exceptionally(ex -> {
+                        if (ex instanceof TimeoutException) {
+                            log.error("工具执行超时 ({}s): {}", TOOL_TIMEOUT.getSeconds(), toolName);
+                            return "工具执行超时（" + TOOL_TIMEOUT.getSeconds() + "秒），请重试或换一种方式";
+                        }
+                        log.error("Tool execution failed: {}", toolName, ex);
+                        return "工具执行出错：" + (ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage());
+                    })
+                    .join();
         } catch (Exception e) {
             log.error("Tool execution failed: {}", toolName, e);
             return "工具执行出错：" + e.getMessage();

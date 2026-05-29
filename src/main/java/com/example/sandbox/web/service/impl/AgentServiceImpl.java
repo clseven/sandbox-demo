@@ -79,7 +79,7 @@ public class AgentServiceImpl implements AgentService {
     public void closeSession(String sessionId) {
         ConversationSession session = conversationService.getSession(sessionId);
         validateSessionOwnership(session);
-        sandboxService.removeSandbox(sessionId);
+        // 沙箱为用户级，关闭会话不销毁沙箱
         conversationService.deleteSession(sessionId);
         log.info("Closed session: {}", sessionId);
     }

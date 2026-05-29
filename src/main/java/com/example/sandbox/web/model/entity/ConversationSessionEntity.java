@@ -37,7 +37,7 @@ public class ConversationSessionEntity {
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<ChatMessageEntity> messages = new HashSet<>();
 
-    @ElementCollection(fetch = FetchType.LAZY)
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
         name = "session_skill",
         joinColumns = @JoinColumn(name = "session_id")

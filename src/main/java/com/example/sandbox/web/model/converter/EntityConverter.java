@@ -33,9 +33,9 @@ public class EntityConverter {
      */
     private static ChatMessage createChatMessageViaReflection(String role, String content, Long timestamp) {
         try {
-            var constructor = ChatMessage.class.getDeclaredConstructor(String.class, String.class, Long.class);
+            var constructor = ChatMessage.class.getDeclaredConstructor(String.class, String.class, Long.class, java.util.List.class);
             constructor.setAccessible(true);
-            return constructor.newInstance(role, content, timestamp);
+            return constructor.newInstance(role, content, timestamp, null);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create ChatMessage via reflection", e);
         }

@@ -65,6 +65,13 @@ public class SandboxController {
         return ApiResponse.success(result);
     }
 
+    @GetMapping("/{id}/aio/endpoint")
+    public ApiResponse<String> getAioEndpoint(@PathVariable String id) {
+        agentService.getSession(id);
+        String endpoint = sandboxServiceImpl.getAioEndpoint(id);
+        return ApiResponse.success(endpoint);
+    }
+
     @GetMapping("/{id}/aio/download")
     public void downloadAioFile(@PathVariable String id, @RequestParam String path, HttpServletResponse response) {
         try {

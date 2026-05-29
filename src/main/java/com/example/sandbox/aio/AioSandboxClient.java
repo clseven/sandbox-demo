@@ -3,8 +3,10 @@ package com.example.sandbox.aio;
 import com.example.sandbox.web.service.SandboxClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -23,12 +25,17 @@ public class AioSandboxClient implements SandboxClient {
 
     private static final Logger log = LoggerFactory.getLogger(AioSandboxClient.class);
 
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(120);
+
     private final WebClient webClient;
     private String shellSessionId;
 
     public AioSandboxClient(String baseUrl) {
+        HttpClient httpClient = HttpClient.create()
+                .responseTimeout(DEFAULT_TIMEOUT);
         this.webClient = WebClient.builder()
                 .baseUrl(baseUrl)
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .build();
     }
 
@@ -223,7 +230,7 @@ public class AioSandboxClient implements SandboxClient {
 
             for (int i = 0; i < maxWaitSeconds; i++) {
                 // 用 WAIT 操作让浏览器等待 1 秒
-                browserAction(Map.of("action_type", "WAIT", "wait", 1000));
+                browserAction(Map.of("action_type", "WAIT", "duration", 1000));
 
                 // 检查浏览器是否可响应
                 Map<String, Object> info = browserInfo();
@@ -283,8 +290,8 @@ public class AioSandboxClient implements SandboxClient {
                     log.debug("Browser: SCROLL");
                 }
                 case "WAIT" -> {
-                    body.put("wait", action.get("wait"));
-                    log.debug("Browser: WAIT {}ms", action.get("wait"));
+                    body.put("duration", action.get("duration"));
+                    log.debug("Browser: WAIT {}ms", action.get("duration"));
                 }
                 default -> {
                     log.warn("未知的浏览器操作类型: {}", actionType);
@@ -360,8 +367,8 @@ public class AioSandboxClient implements SandboxClient {
 
         // 初始延迟，等待容器内部服务完全启动
         try {
-            log.info("等待 AIO 服务启动（初始延迟 10 秒）...");
-            Thread.sleep(10000);
+            log.info("等待 AIO 服务启动（初始延迟 60 秒）...");
+            Thread.sleep(60000);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return false;
@@ -432,6 +439,77 @@ public class AioSandboxClient implements SandboxClient {
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(ShellExecResult.class)
+                .block();
+    }
+
+    // ==================== Shell 扩展 ====================
+
+    public Map<String, Object> shellWait(String sessionId, int seconds) {
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("id", sessionId);
+        body.put("seconds", seconds);
+        log.debug("Shell: wait session={} seconds={}", sessionId, seconds);
+        return webClient.post()
+                .uri("/v1/shell/wait")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+    }
+
+    public Map<String, Object> shellKill(String sessionId) {
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("id", sessionId);
+        log.debug("Shell: kill session={}", sessionId);
+        return webClient.post()
+                .uri("/v1/shell/kill")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+    }
+
+    // ==================== File 扩展 ====================
+
+    public Map<String, Object> fileReplace(String file, String oldStr, String newStr) {
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("file", file);
+        body.put("old_str", oldStr);
+        body.put("new_str", newStr);
+        log.debug("File: replace {} ({} -> {} chars)", file, oldStr.length(), newStr.length());
+        return webClient.post()
+                .uri("/v1/file/replace")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+    }
+
+    public Map<String, Object> fileSearch(String file, String regex) {
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("file", file);
+        body.put("regex", regex);
+        log.debug("File: search {} pattern={}", file, regex);
+        return webClient.post()
+                .uri("/v1/file/search")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+    }
+
+    public Map<String, Object> strReplaceEditor(Map<String, Object> params) {
+        log.debug("File: str_replace_editor {}", params.get("command"));
+        return webClient.post()
+                .uri("/v1/file/str_replace_editor")
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .bodyValue(params)
+                .retrieve()
+                .bodyToMono(Map.class)
                 .block();
     }
 
